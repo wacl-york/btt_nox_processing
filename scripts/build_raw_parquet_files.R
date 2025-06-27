@@ -12,9 +12,9 @@ library(dplyr)
 library(purrr)
 library(arrow)
 
-source(here::here('functions','tidyr_raw_csvs.R'))
+source("/btt_processing/functions/tidy_raw_csvs.R")
 
-config = read.ini(here::here("config.ini"))
+config = read.ini("/btt_processing/config.ini")
 
 args = commandArgs(trailingOnly = TRUE)
 
@@ -59,8 +59,11 @@ dataFileName = paste0("NOx_5Hz_", basename(yr),"_", mnth, ".parquet")
 dataDirOut = file.path(config$paths$raw_parquet,"data", type)
 
 if(!dir.exists(dataDirOut)){
-  dir.create(dataDirOut)
+  dir.create(dataDirOut, recursive = T)
 }
+
+data = arrowReadData |>
+  tidy_raw_csvs(type)
 
 write_dataset(data,file.path(dataDirOut, datFileName), format = "parquet")
 

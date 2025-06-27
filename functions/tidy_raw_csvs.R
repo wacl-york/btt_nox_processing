@@ -59,6 +59,6 @@ tidy_raw_csvs = function(dataList, type){
   }
   
   data |> 
-    dplyr::mutate(unixTime = (unixTime-25569)*86400)
+    dplyr::mutate(unix_time = (unix_time-25569)*86400)
   
 }
