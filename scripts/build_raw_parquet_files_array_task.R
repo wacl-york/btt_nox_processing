@@ -2,7 +2,7 @@
 args = commandArgs(trailingOnly = T)
 SLURM_ARRAY_TASK_ID = as.numeric(args[1])+1
 
-config = ini::read.ini("/btt_nox_processing/config")
+config = ini::read.ini("/btt_nox_processing/config.ini")
 
 dirs = list.dirs(config$paths$raw_data) 
 dirs = dirs[nchar(dirs) == max(nchar(dirs))]
