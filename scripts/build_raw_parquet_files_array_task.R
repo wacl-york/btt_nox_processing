@@ -1,6 +1,6 @@
 # pass SLURM_ARRAY_TASK_ID as the first argument  
 args = commandArgs(trailingOnly = T)
-SLURM_ARRAY_TASK_ID = as.numeric(args[1])
+SLURM_ARRAY_TASK_ID = as.numeric(args[1])+1
 
 config = ini::read.ini("/btt_nox_processing/config")
 
