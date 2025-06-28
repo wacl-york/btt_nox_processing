@@ -26,58 +26,64 @@ files = list.files(
   path = file.path(config$paths$raw_data, type, yr, mnth), 
   full.names = T)
 
-arrowRead = map(files, safely(\(x) arrow::read_csv_arrow(x), NULL))
-
-arrowReadData = arrowRead |> 
-  map(pluck("result"))
-
-arrowReadErrors = arrowRead |> 
-  map(pluck("error"))
-
-whereError = lapply(arrowReadErrors, \(x) !is.null(x)) |> 
-  unlist() |> 
-  which()
-
-# if we got read errors via arrow::read_csv_arrow, try these using read.csv
-if(length(whereError) > 0){ 
-  csvRead = map(files[whereError], safely(\(x) tibble(read.csv(x)), NULL))
+if(length(files) != 0){
   
-  csvReadData = csvRead |> 
+  arrowRead = map(files, safely(\(x) arrow::read_csv_arrow(x), NULL))
+  
+  arrowReadData = arrowRead |> 
     map(pluck("result"))
   
-  csvReadErrors = csvRead |> 
+  arrowReadErrors = arrowRead |> 
     map(pluck("error"))
   
-  for(i in 1:length(whereError)){
-    arrowReadData[[whereError[i]]] = csvReadData[[i]]
-    arrowReadErrors[[whereError[i]]] = csvReadErrors[[i]]
+  whereError = lapply(arrowReadErrors, \(x) !is.null(x)) |> 
+    unlist() |> 
+    which()
+  
+  # if we got read errors via arrow::read_csv_arrow, try these using read.csv
+  if(length(whereError) > 0){ 
+    csvRead = map(files[whereError], safely(\(x) tibble(read.csv(x)), NULL))
+    
+    csvReadData = csvRead |> 
+      map(pluck("result"))
+    
+    csvReadErrors = csvRead |> 
+      map(pluck("error"))
+    
+    for(i in 1:length(whereError)){
+      arrowReadData[[whereError[i]]] = csvReadData[[i]]
+      arrowReadErrors[[whereError[i]]] = csvReadErrors[[i]]
+    }
+    
   }
   
-}
-
-dataFileName = paste0("NOx_5Hz_", basename(yr),"_", mnth, ".parquet")
-dataDirOut = file.path(config$paths$raw_parquet,"data", type, yr)
-
-if(!dir.exists(dataDirOut)){
-  dir.create(dataDirOut, recursive = TRUE)
-}
-
-data = arrowReadData |>
-  tidy_raw_csvs(type)
-
-write_dataset(data,file.path(dataDirOut, dataFileName), format = "parquet")
-
-errors = purrr::discard(arrowReadErrors, \(x) is.null(x))
-
-if(length(errors) > 0){
-  errorFileName = paste0("NOx_5Hz_error_", basename(yr),"_", mnth, ".RDS")
+  dataFileName = paste0("NOx_5Hz_", basename(yr),"_", mnth, ".parquet")
+  dataDirOut = file.path(config$paths$raw_parquet,"data", type, yr)
   
-  errorDirOut = file.path(config$paths$raw_parquet,"error", type)
-  
-  if(!dir.exists(errorDirOut)){
-    dir.create(errorDirOut, recursive = TRUE)
+  if(!dir.exists(dataDirOut)){
+    dir.create(dataDirOut, recursive = TRUE)
   }
   
-  saveRDS(errors, file.path(errorDirOut, errorFileName), format = "parquet")
-
+  data = arrowReadData |>
+    tidy_raw_csvs(type)
+  
+  write_dataset(data,file.path(dataDirOut, dataFileName), format = "parquet")
+  
+  errors = purrr::discard(arrowReadErrors, \(x) is.null(x))
+  
+  if(length(errors) > 0){
+    errorFileName = paste0("NOx_5Hz_error_", basename(yr),"_", mnth, ".RDS")
+    
+    errorDirOut = file.path(config$paths$raw_parquet,"error", type)
+    
+    if(!dir.exists(errorDirOut)){
+      dir.create(errorDirOut, recursive = TRUE)
+    }
+    
+    saveRDS(errors, file.path(errorDirOut, errorFileName), format = "parquet")
+    
+  }
+  
+}else{
+  print("no files in folder")
 }
