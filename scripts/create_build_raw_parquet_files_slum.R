@@ -19,7 +19,7 @@ message = c("#!/bin/bash",
             "#SBATCH -e %j.err",
             paste0("#SBATCH --array=0-", length(dirs)-1),
             "",
-            "singularity exec btt_nox_processing_dev.sif Rscript /btt_nox_processing/scripts/build_raw_parquet_files_array_task.R $SLURM_ARRAY_TASK_ID",
+            "singularity exec btt_nox_processing_dev.sif Rscript /btt_nox_processing/scripts/build_raw_parquet_files_array_task.R $SLURM_ARRAY_TASK_ID"
 )
 
 writeLines(message, con = file.path(config$paths$software, "build_raw_parquet_files.slurm"))
