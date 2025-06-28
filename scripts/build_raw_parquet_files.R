@@ -12,9 +12,9 @@ library(dplyr)
 library(purrr)
 library(arrow)
 
-source("/btt_processing/functions/tidy_raw_csvs.R")
+source("/btt_nox_processing/functions/tidy_raw_csvs.R")
 
-config = read.ini("/btt_processing/config.ini")
+config = read.ini("/btt_nox_processing/config.ini")
 
 args = commandArgs(trailingOnly = TRUE)
 
@@ -56,16 +56,16 @@ if(length(whereError) > 0){
 }
 
 dataFileName = paste0("NOx_5Hz_", basename(yr),"_", mnth, ".parquet")
-dataDirOut = file.path(config$paths$raw_parquet,"data", type)
+dataDirOut = file.path(config$paths$raw_parquet,"data", type, yr)
 
 if(!dir.exists(dataDirOut)){
-  dir.create(dataDirOut, recursive = T)
+  dir.create(dataDirOut, recursive = TRUE)
 }
 
 data = arrowReadData |>
   tidy_raw_csvs(type)
 
-write_dataset(data,file.path(dataDirOut, datFileName), format = "parquet")
+write_dataset(data,file.path(dataDirOut, dataFileName), format = "parquet")
 
 errors = purrr::discard(arrowReadErrors, \(x) is.null(x))
 
@@ -75,7 +75,7 @@ if(length(errors) > 0){
   errorDirOut = file.path(config$paths$raw_parquet,"error", type)
   
   if(!dir.exists(errorDirOut)){
-    dir.create(errorDirOut)
+    dir.create(errorDirOut, recursive = TRUE)
   }
   
   saveRDS(errors, file.path(errorDirOut, errorFileName), format = "parquet")
