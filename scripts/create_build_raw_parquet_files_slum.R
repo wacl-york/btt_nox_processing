@@ -1,12 +1,15 @@
-# pass SLURM_ARRAY_TASK_ID as the first argument  
-args = commandArgs(trailingOnly = T)
-SLURM_ARRAY_TASK_ID = as.numeric(args[1])
-
 config = ini::read.ini("/btt_nox_processing/config.ini")
 
 dirs = list.dirs(config$paths$raw_data) 
-dirs = dirs[nchar(dirs) == max(nchar(dirs))]
-dirs = stringr::str_remove(dirs, config$paths$raw_data) 
+dirs = dplyr::tibble(dir = stringr::str_remove(dirs, config$paths$raw_data))
+dirs = dirs |> 
+  dplyr::filter(stringr::str_detect(dir, "/")) |> 
+  tidyr::separate_wider_delim(cols = dir, delim = "/", names = c("yyy","type", "year", "month"), too_few = "align_start") |> 
+  dplyr::select(-yyy) |> 
+  dplyr::filter(
+    !is.na(month),
+    type %in% c("five_hz", "params")
+  )
 
 message = c("#!/bin/bash",
             "#SBATCH --job-name='btt_build_parquet'",
@@ -17,7 +20,7 @@ message = c("#!/bin/bash",
             "#SBATCH --qos=standard",
             "#SBATCH -o %j.out",
             "#SBATCH -e %j.err",
-            paste0("#SBATCH --array=0-", length(dirs)-1),
+            paste0("#SBATCH --array=0-", nrow(dirs)-1),
             "",
             "singularity exec btt_nox_processing_dev.sif Rscript /btt_nox_processing/scripts/build_raw_parquet_files_array_task.R $SLURM_ARRAY_TASK_ID"
 )

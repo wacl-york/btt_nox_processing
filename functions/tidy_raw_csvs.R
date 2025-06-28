@@ -16,7 +16,7 @@ tidy_raw_csvs = function(dataList, type){
   }
   
   if(type == "params"){
-    dataList |> 
+    data = dataList |> 
       dplyr::bind_rows() |> 
       dplyr::tibble() |> 
       dplyr::select(
