@@ -1,5 +1,3 @@
-packages = c("tidyverse", "arrow", "ini", "here")
+packages = c("dplyr", "purrr", "arrow", "ini", "here")
 
-for(i in 1:length(packages)){
-    install.packages(packages)
-}
+install.packages(packages)
