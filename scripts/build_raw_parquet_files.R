@@ -14,6 +14,18 @@ library(arrow)
 
 source("/btt_nox_processing/functions/tidy_raw_csvs.R")
 
+# When DAQFactory crashes, it seems to write nul to the file
+# read.csv is ok with this, but arrow sometimes throws an error
+# If it actually errors, the file should be reread by read .csv in the 
+# if(length(whereError) > 0){} block. 
+#
+# However, sometimes the error is handled differently, and instead an object is 
+# returned that sometimes shows the error when column is accessed. This might be
+# to do with the nuls being in the middle of a file, rather than at the end. 
+# I don't know. Anyway, setting arrow.skip_nul = T seems to help.
+
+options(arrow.skip_nul = T)
+
 config = read.ini("/btt_nox_processing/config.ini")
 
 args = commandArgs(trailingOnly = TRUE)
@@ -28,7 +40,13 @@ files = list.files(
 
 if(length(files) != 0){
   
-  arrowRead = map(files, safely(\(x) arrow::read_csv_arrow(x), NULL))
+  arrowRead = map(
+    files,
+    safely(
+      \(x) arrow::read_csv_arrow(x)),
+      NULL
+    )
+  )
   
   arrowReadData = arrowRead |> 
     map(pluck("result"))
@@ -67,7 +85,11 @@ if(length(files) != 0){
   data = arrowReadData |>
     tidy_raw_csvs(type)
   
-  write_dataset(data,file.path(dataDirOut, dataFileName), format = "parquet")
+  write_dataset(dataset = data,
+                path = dataDirOut,
+                basename_template =  paste0(dataFileName, "-{i}.parquet"),
+                format = "parquet")
+                )
   
   errors = purrr::discard(arrowReadErrors, \(x) is.null(x))
   
@@ -80,7 +102,7 @@ if(length(files) != 0){
       dir.create(errorDirOut, recursive = TRUE)
     }
     
-    saveRDS(errors, file.path(errorDirOut, errorFileName), format = "parquet")
+    saveRDS(errors, file.path(errorDirOut, errorFileName))
     
   }
   
