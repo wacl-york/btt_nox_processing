@@ -43,9 +43,10 @@ if(length(files) != 0){
   arrowRead = map(
     files,
     safely(
-      \(x) arrow::read_csv_arrow(x)),
+      \(x) arrow::read_csv_arrow(x),
       NULL
     )
+  )
   
   arrowReadData = arrowRead |> 
     map(pluck("result"))
