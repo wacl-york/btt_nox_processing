@@ -75,7 +75,7 @@ if(length(files) != 0){
     
   }
   
-  dataFileName = paste0("NOx_5Hz_", basename(yr),"_", mnth, ".parquet")
+  dataFileName = paste0("NOx_5Hz_", basename(yr),"_", mnth)
   dataDirOut = file.path(config$paths$raw_parquet,"data", type, yr)
   
   if(!dir.exists(dataDirOut)){
