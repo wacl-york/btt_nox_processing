@@ -46,7 +46,6 @@ if(length(files) != 0){
       \(x) arrow::read_csv_arrow(x)),
       NULL
     )
-  )
   
   arrowReadData = arrowRead |> 
     map(pluck("result"))
@@ -89,7 +88,6 @@ if(length(files) != 0){
                 path = dataDirOut,
                 basename_template =  paste0(dataFileName, "-{i}.parquet"),
                 format = "parquet")
-                )
   
   errors = purrr::discard(arrowReadErrors, \(x) is.null(x))
   

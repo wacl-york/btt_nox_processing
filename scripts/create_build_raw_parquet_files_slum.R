@@ -11,11 +11,11 @@ message = c("#!/bin/bash",
             "#SBATCH --account=ncas_obs",
             "#SBATCH --partition=standard",
             "#SBATCH --qos=standard",
-            "#SBATCH -o /gws/pw/j07/ncas_obs_vol1/bttao/logs/%j/%x/%a/%j.out",
-            "#SBATCH -e /gws/pw/j07/ncas_obs_vol1/bttao/logs/%j/%x/%a/%j.err",
+            "#SBATCH -o /gws/pw/j07/ncas_obs_vol1/bttao/logs/%x/%j/%a/%j.out",
+            "#SBATCH -e /gws/pw/j07/ncas_obs_vol1/bttao/logs/%x/%j/%a/%j.err",
             paste0("#SBATCH --array=0-", nrow(dirs)-1),
             "",
-            "singularity exec btt_nox_processing_dev.sif Rscript /btt_nox_processing/scripts/build_raw_parquet_files_array_task.R $SLURM_ARRAY_TASK_ID"
+            "singularity exec /gws/pw/j07/ncas_obs_vol1/bttao/software/btt_nox_processing_dev.sif Rscript /btt_nox_processing/scripts/build_raw_parquet_files_array_task.R $SLURM_ARRAY_TASK_ID"
 )
 
 writeLines(message, con = file.path(config$paths$software, "build_raw_parquet_files.slurm"))
