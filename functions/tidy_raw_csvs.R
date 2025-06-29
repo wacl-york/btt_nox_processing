@@ -2,6 +2,14 @@ tidy_raw_csvs = function(dataList, type){
   
   if(type == "five_hz"){
     data = dataList |> 
+      purrr::map(
+        \(x) {x |> 
+            dplyr::mutate(
+              dplyr::across(
+                tidyselect::everything(),
+                as.numeric
+              ))}
+      ) |>
       dplyr::bind_rows() |> 
       dplyr::tibble() |> 
       dplyr::select(
@@ -17,6 +25,14 @@ tidy_raw_csvs = function(dataList, type){
   
   if(type == "params"){
     data = dataList |> 
+      purrr::map(
+        \(x) {x |> 
+            dplyr::mutate(
+              dplyr::across(
+                tidyselect::everything(),
+                as.numeric
+              ))}
+      ) |> 
       dplyr::bind_rows() |> 
       dplyr::tibble() |> 
       dplyr::select(
