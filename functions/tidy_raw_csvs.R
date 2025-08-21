@@ -4,7 +4,8 @@ tidy_raw_csvs = function(dataList, type){
     data = dataList |> 
       purrr::map(
         \(x) {x |> 
-            dplyr::mutate(
+        tibble::repair_names() |>     
+	dplyr::mutate(
               dplyr::across(
                 tidyselect::everything(),
                 as.numeric
@@ -19,14 +20,15 @@ tidy_raw_csvs = function(dataList, type){
         w_ms = w,
         v_ms = vv,
         u_ms = u,
-        tempSonic_ms = temp_sonic
+        tempsonic_ms = temp_sonic
       ) 
   }
   
   if(type == "params"){
     data = dataList |> 
       purrr::map(
-        \(x) {x |> 
+        \(x) {x |>
+        tibble::repair_names() |>     
             dplyr::mutate(
               dplyr::across(
                 tidyselect::everything(),
@@ -39,7 +41,7 @@ tidy_raw_csvs = function(dataList, type){
         unix_time = TheTime, 
         blc_lamp_1 = BLC_Lamp_1, 
         blc_lamp_2 = BLC_Lamp_2, 
-        blc_temp = MLC_temp,
+        blc_temp = BLC_temp,
         control_temp = Control_Temp,
         hv_1 = HV_1, 
         hv_1_cntl = HV_1_cntl, 
@@ -68,9 +70,9 @@ tidy_raw_csvs = function(dataList, type){
         vac_valve_2,
         zero_valve_1,
         zero_valve_2,
-        zero_volume_temperature,
-        ozone_reset,
-        ozone_trip
+        zero_volume_temperature = Zero_Vol_Temp,
+        ozone_reset = Ozone_reset,
+        ozone_trip = Ozone_trip
       )
   }
   
