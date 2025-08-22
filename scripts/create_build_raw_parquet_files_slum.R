@@ -6,7 +6,7 @@ dirs = get_raw_dirs()
 
 message = c("#!/bin/bash",
             "#SBATCH --job-name='btt_build_parquet'",
-            "#SBATCH --time=00:05:00",
+            "#SBATCH --time=01:00:00",
             "#SBATCH --mem=10G",
             "#SBATCH --account=ncas_obs",
             "#SBATCH --partition=standard",
