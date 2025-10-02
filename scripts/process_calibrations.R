@@ -6,7 +6,7 @@ library(arrow)
 library(waclr)
 
 # Load calibration times
-all_cal_times <- read_csv("data/cal_times_all.csv") |> 
+all_cal_times <- read_csv("data/data/cal_times_all.csv") |> 
   mutate(date2 = as.Date(date)) |> 
   filter(!(date2 %in% c("2023-03-30", "2023-04-29", "2024-04-11", "2024-04-12", "2024-05-09", "2023-08-08", "2025-02-01",
                         "2025-02-02"))) |>
@@ -17,7 +17,12 @@ cal_file <- all_cal_times |>
   arrange(date)
 
 # List all Parquet parameter files
-param_files <- list.files("data/parquet_params", full.names = TRUE, pattern = "param_\\d{4}_\\d{2}\\.parquet$", recursive = TRUE)
+param_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params/"
+
+param_files <- list.files(file.path(param_root), 
+                          full.names = TRUE, 
+                          pattern = "param_\\d{4}_\\d{2}\\.parquet$", 
+                          recursive = TRUE)
 
 # Extract year and month from filenames
 param_info <- data.frame(
