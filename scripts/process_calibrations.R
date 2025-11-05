@@ -17,7 +17,7 @@ cal_file <- all_cal_times |>
   arrange(date)
 
 # List all Parquet parameter files
-param_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params/"
+param_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_2/"
 
 param_files <- list.files(file.path(param_root), 
                           full.names = TRUE, 
@@ -35,15 +35,17 @@ param_info <- data.frame(
 expected_param_columns <- c(
   "date", "ch1_hz", "ch2_hz", "no_cal_flow", "no_cal_flow_set", "sampleflow1", "sampleflow2",
   "blc_lamp_1", "zero_valve_1", "zero_valve_2", "nox_cal", "zero_trap", 
-  "blc_temp", "control_temp", "rxn_vessel_pressure", "count"
+  "blc_temp", "control_temp", "rxn_vessel_pressure", "count", "inlet_pressure"
 )
 
 # Initialize calibration coefficients table
-cal_coefficients <- data.frame(matrix(ncol = 15, nrow = 0))
+cal_coefficients <- data.frame(matrix(ncol = 25, nrow = 0))
 colnames(cal_coefficients) <- c(
-  "date", "ch1_sens", "ch2_sens", "ce", "ce_eq2", "no_cal_flow", 
+  "date", "ch1_sens", "ch2_sens", "ce", "ce_zero", "ce_eq2", "no_cal_flow", 
   "mean_ch1_sd", "mean_ch2_sd", "av_control_temp", "av_rxn_vessel_pressure",
-  "cal_flag1", "cal_flag2", "cal_flag3", "ce_flag1", "ce_flag2"
+  "cal_flag1", "cal_flag2", "cal_flag3", "ce_flag1", "ce_flag2", "zero_1_ch2", 
+  "zero_2_ch2", "part1_eq2", "part2_eq2", "part3_eq2", "N", "sample_flow1", "sample_flow2", 
+  "inlet_pressure"
 )
 
 cal_process <- data.frame(cal_time = numeric(), process = numeric())
@@ -108,11 +110,8 @@ for (i in 1:length(cal_times)) {
   av_control_temp <- mean(ten$control_temp, na.rm = TRUE)
   no_cal_flow <- mean(ten$no_cal_flow, na.rm = TRUE)
   av_rxn_vessel_pressure <- mean(ten$rxn_vessel_pressure, na.rm = TRUE)
+  inlet_pressure <- median(param_data$inlet_pressure, na.rm = TRUE)
   
-  # if (nrow(ten) < 170) {
-  #   print(paste0("Skipping: ", i))
-  #   next
-  # }
   
   ten_multi <- ten %>%
     mutate(idx = row_number()) |>
@@ -288,6 +287,24 @@ for (i in 1:length(cal_times)) {
       filter(count > 316, count < 416) %>%
       mutate(type = "gpt_1_blc_0") # STAGE 1
     
+    zero_data1 <- param_data |>
+      filter(zero_valve_2 == 1.0, 
+             zero_valve_1 == 1.0) |> 
+      filter(between(count, 5, 15)) |>
+      select(date, ch1_hz, ch2_hz) |>
+      mutate(date = floor_date(date, unit = "second"))
+    
+    zero_1_ch2 <- median(zero_data1$ch2_hz)
+    
+    zero_data2 <- param_data |>
+      filter(zero_valve_2 == 1.0, 
+             zero_valve_1 == 1.0) |> 
+      filter(between(count, 613, 623)) |>
+      select(date, ch1_hz, ch2_hz) |>
+      mutate(date = floor_date(date, unit = "second"))
+    
+    zero_2_ch2 <- median(zero_data2$ch2_hz)
+    
   } else if (single_flow %in% flows_present && !any(multi_others %in% flows_present)) {
     # ---------------------
     # Single-point CE stages
@@ -323,6 +340,24 @@ for (i in 1:length(cal_times)) {
              nox_cal == 1) %>% 
       filter(count > 250, count < 300) %>%
       mutate(type = "gpt_1_blc_0")  # STAGE 1
+    
+    zero_data1 <- param_data |>
+      filter(zero_valve_2 == 1.0, 
+             zero_valve_1 == 1.0) |> 
+      filter(between(count, 5, 15)) |>
+      select(date, ch1_hz, ch2_hz) |>
+      mutate(date = floor_date(date, unit = "second"))
+    
+    zero_1_ch2 <- median(zero_data1$ch2_hz)
+    
+    zero_data2 <- param_data |>
+      filter(zero_valve_2 == 1.0, 
+             zero_valve_1 == 1.0) |> 
+      filter(between(count, 431, 442)) |>
+      select(date, ch1_hz, ch2_hz) |>
+      mutate(date = floor_date(date, unit = "second"))
+    
+    zero_2_ch2 <- median(zero_data2$ch2_hz)
     
   } else {
     # ---------------------
@@ -371,9 +406,12 @@ for (i in 1:length(cal_times)) {
     dplyr::select(type, ch2_hz) %>% 
     pivot_wider(names_from = type,
                 values_from = ch2_hz) %>%
-    mutate(ce = 1 - ((gpt_0_blc_1 - gpt_1_blc_1) / (gpt_0_blc_0 - gpt_1_blc_0)))
+    mutate(ce = 1 - ((gpt_0_blc_1 - gpt_1_blc_1) / (gpt_0_blc_0 - gpt_1_blc_0)),
+           ce_zero = 1 - (((gpt_0_blc_1-zero_2_ch2) - (gpt_1_blc_1-zero_1_ch2)) 
+                          / ((gpt_0_blc_0-zero_2_ch2) - (gpt_1_blc_0-zero_1_ch2))))
   
   ce <- con_eff$ce 
+  ce_zero <- con_eff$ce_zero 
   
   all_stages <- bind_rows(gpt_0_blc_1,
                           gpt_1_blc_1,
@@ -398,10 +436,10 @@ for (i in 1:length(cal_times)) {
            r4 = mean_flow_typegpt_0_blc_1 / (mean_flow_typegpt_0_blc_1 + (sampleflow2_typegpt_0_blc_1 + sampleflow1_typegpt_0_blc_1)), 
            r1 = mean_flow_typegpt_1_blc_0 / (mean_flow_typegpt_1_blc_0 + (sampleflow2_typegpt_1_blc_0 + sampleflow1_typegpt_1_blc_0)), 
            r3 = mean_flow_typegpt_0_blc_0 / (mean_flow_typegpt_0_blc_0 + (sampleflow2_typegpt_0_blc_0 + sampleflow1_typegpt_0_blc_0))) |> 
-    mutate(counts_stage1_zero = median_ch2_typegpt_1_blc_0 - zero_ch2_typegpt_1_blc_0,
-           counts_stage2_zero = median_ch2_typegpt_1_blc_1 - zero_ch2_typegpt_1_blc_1,
-           counts_stage3_zero = median_ch2_typegpt_0_blc_0 - zero_ch2_typegpt_0_blc_0, 
-           counts_stage4_zero = median_ch2_typegpt_0_blc_1 - zero_ch2_typegpt_0_blc_1) |> 
+    mutate(counts_stage1_zero = median_ch2_typegpt_1_blc_0 - zero_1_ch2,
+           counts_stage2_zero = median_ch2_typegpt_1_blc_1 - zero_1_ch2,
+           counts_stage3_zero = median_ch2_typegpt_0_blc_0 - zero_2_ch2, 
+           counts_stage4_zero = median_ch2_typegpt_0_blc_1 - zero_2_ch2) |> 
     mutate(N = 5.1e3 * (ch2_sens_typegpt_1_blc_0 * 1e3)) |> 
     mutate(part1_eq2 = counts_stage2_zero + (N * r1) - counts_stage1_zero, 
            part2_eq2 = counts_stage4_zero * r2 / r4, 
@@ -409,6 +447,12 @@ for (i in 1:length(cal_times)) {
     mutate(ce_eq2 = (part1_eq2 - part2_eq2) / part3_eq2) 
   
   ce_eq2 <- as.numeric(all_stages$ce_eq2) 
+  part1_eq2 <- as.numeric(all_stages$part1_eq2) 
+  part2_eq2 <- as.numeric(all_stages$part2_eq2) 
+  part3_eq2 <- as.numeric(all_stages$part3_eq2) 
+  N <- as.numeric(all_stages$N) 
+  sample_flow1 <- as.numeric(all_stages$sampleflow1_typegpt_0_blc_1) 
+  sample_flow2 <- as.numeric(all_stages$sampleflow2_typegpt_0_blc_1) 
   
   con_eff2 <- bind_rows(gpt_0_blc_1,
                         gpt_1_blc_1,
@@ -449,17 +493,27 @@ for (i in 1:length(cal_times)) {
   cal_coefficients[i, 2] <- cal_slope_ch1
   cal_coefficients[i, 3] <- cal_slope_ch2
   cal_coefficients[i, 4] <- ce
-  cal_coefficients[i, 5] <- ce_eq2
-  cal_coefficients[i, 6] <- no_cal_flow
-  cal_coefficients[i, 7] <- mean_ch1_sd
-  cal_coefficients[i, 8] <- mean_ch2_sd
-  cal_coefficients[i, 9] <- av_control_temp
-  cal_coefficients[i, 10] <- av_rxn_vessel_pressure
-  cal_coefficients[i, 11] <- cal_flag1
-  cal_coefficients[i, 12] <- cal_flag2
-  cal_coefficients[i, 13] <- cal_flag3
-  cal_coefficients[i, 14] <- ce_flag1
-  cal_coefficients[i, 15] <- ce_flag2
+  cal_coefficients[i, 5] <- ce_zero
+  cal_coefficients[i, 6] <- ce_eq2
+  cal_coefficients[i, 7] <- no_cal_flow
+  cal_coefficients[i, 8] <- mean_ch1_sd
+  cal_coefficients[i, 9] <- mean_ch2_sd
+  cal_coefficients[i, 10] <- av_control_temp
+  cal_coefficients[i, 11] <- av_rxn_vessel_pressure
+  cal_coefficients[i, 12] <- cal_flag1
+  cal_coefficients[i, 13] <- cal_flag2
+  cal_coefficients[i, 14] <- cal_flag3
+  cal_coefficients[i, 15] <- ce_flag1
+  cal_coefficients[i, 16] <- ce_flag2
+  cal_coefficients[i, 17] <- zero_1_ch2
+  cal_coefficients[i, 18] <- zero_2_ch2
+  cal_coefficients[i, 19] <- part1_eq2
+  cal_coefficients[i, 20] <- part2_eq2
+  cal_coefficients[i, 21] <- part3_eq2
+  cal_coefficients[i, 22] <- N
+  cal_coefficients[i, 23] <- sample_flow1
+  cal_coefficients[i, 24] <- sample_flow2
+  cal_coefficients[i, 25] <- inlet_pressure
 }
 
 # Write output files per month/year
@@ -474,9 +528,9 @@ cal_coefficients <- cal_coefficients |>
 cal_coefficients |>
   group_by(year, month_num) |>
   group_walk(~ {
-    output_dir <- file.path("calibration/viking_tests", .y$year, .y$month_num)
+    output_dir <- file.path("/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/calibration_data", .y$year, .y$month_num)
     dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-    write_csv(.x, file.path(output_dir, "coefficients_new_maths.csv"))
+    write_csv(.x, file.path(output_dir, "coefficients.csv"))
   })
 
 all_cal_data <- all_cal_data |>
@@ -487,7 +541,7 @@ all_cal_data <- all_cal_data |>
 all_cal_data |>
   group_by(year, month_num) |>
   group_walk(~ {
-    output_dir <- file.path("calibration/viking_tests", .y$year, .y$month_num)
+    output_dir <- file.path("/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/calibration_data", .y$year, .y$month_num)
     dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
     write_csv(.x, file.path(output_dir, "sensitivity_params.csv"))
   })
@@ -500,7 +554,7 @@ all_con_eff <- all_con_eff |>
 all_con_eff |>
   group_by(year, month_num) |>
   group_walk(~ {
-    output_dir <- file.path("calibration/viking_tests", .y$year, .y$month_num)
+    output_dir <- file.path("/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/calibration_data", .y$year, .y$month_num)
     dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
     write_csv(.x, file.path(output_dir, "ce_params.csv"))
   })
