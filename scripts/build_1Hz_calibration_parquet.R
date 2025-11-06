@@ -16,7 +16,7 @@ files_coefficients <- list.files(path = "/mnt/scratch/projects/chem-cmde-2019/bt
                                  recursive = T)
 
 
-all_cal_data <- files_coefficients %>%
+cal_coefficients <- files_coefficients %>%
   map_df(read_csv) 
 
 # conversion efficiency calculation 
@@ -25,45 +25,66 @@ interp_ranges <- list(
   c("2022-09-07", "2024-02-20"),
   c("2024-04-20", "2025-04-20"),
   c("2025-06-13", "2025-10-17")
-)
+) |> lapply(as.POSIXct)
 
-
-# Convert to POSIXct for consistent comparison
-interp_ranges <- lapply(interp_ranges, function(x) as.POSIXct(x))
-
-# --- Compute interpolated CE ---
+# --- Compute ce_interpolated ---
 interpolate_ce <- cal_coefficients %>%
-  filter(ce_zero > 0) |> 
-  filter(ce_zero < 1) |> 
-  filter(cal_flag1 == 0) |>  
-  filter(cal_flag2 == 0) |>  
-  filter(cal_flag3 == 0) |>  
-  filter(!inlet_pressure < 199) |> 
-  filter(!inlet_pressure > 300) |> 
-  mutate(date2 = as.Date(date)) |> 
-  filter(!date2 == "2025-01-31") |> 
-  filter(!date2 == "2025-01-30") |> 
+  filter(ce_zero > 0, ce_zero < 1) %>%
   arrange(date) %>%
   mutate(
-    ce_interpolated = {
-      # Identify "good" points (outside all bad ranges)
-      good_idx <- which(!Reduce(`|`, lapply(interp_ranges, function(r) date >= r[1] & date <= r[2])))
-      
-      # Perform interpolation across all times
-      approx(
-        x = date[good_idx],
-        y = ce[good_idx],
-        xout = date,
-        rule = 2  # allows extrapolation if needed at boundaries
-      )$y
-    },
-    # Keep raw CE outside bad ranges
-    ce_interpolated = ifelse(
+    date2 = as.Date(date),
+    
+    # --- Step 1: mark interpolation status ---
+    interp_status = ifelse(
       Reduce(`|`, lapply(interp_ranges, function(r) date >= r[1] & date <= r[2])),
-      ce_interpolated,  # interpolated inside bad ranges
-      ce                # original outside bad ranges
-    )
-  )
+      "yes", "no"
+    )) %>% 
+  filter(!(interp_status == "no" & cal_flag1 == 1)) %>% #filter out any dipped cals when we are not interpolating 
+  filter(!(interp_status == "no" & cal_flag2 == 1))|>  
+  filter(!(interp_status == "no" & inlet_pressure < 199)) |>  
+  filter(!(interp_status == "no" & inlet_pressure > 300)) |> 
+  mutate(
+    # --- Step 2: compute ce_interpolated ---
+    ce_interpolated = {
+      ce_out <- ce_zero  # start with original
+      
+      for (r in interp_ranges) {
+        start <- r[1]
+        end <- r[2]
+        
+        # indices of this block
+        inside_idx <- which(date >= start & date <= end)
+        before_idx <- which(date < start)
+        after_idx  <- which(date > end)
+        
+        if (length(inside_idx) == 0) next
+        
+        # median of last 5 valid points before block
+        start_val <- if (length(before_idx) > 0) {
+          median(tail(ce_zero[before_idx], 15), na.rm = TRUE)
+        } else {
+          ce_zero[inside_idx[1]]  # fallback
+        }
+        start_date <- if (length(before_idx) > 0) date[max(before_idx)] else date[inside_idx[1]]
+        
+        # first valid point after block
+        end_val <- if (length(after_idx) > 0) ce_zero[min(after_idx)] else start_val
+        end_date <- if (length(after_idx) > 0) date[min(after_idx)] else date[inside_idx[length(inside_idx)]]
+        
+        # interpolate linearly across the block
+        ce_out[inside_idx] <- approx(
+          x = as.numeric(c(start_date, end_date)),
+          y = c(start_val, end_val),
+          xout = as.numeric(date[inside_idx]),
+          rule = 2
+        )$y
+      }
+      
+      ce_out
+    }
+  ) %>% 
+  filter(ce_interpolated > 0.45) %>% 
+  filter(ce_interpolated < 0.7)
 
 
 # pressure interpolation 
@@ -87,37 +108,35 @@ pressure_correction <- cal_coefficients |>
     TRUE ~ NA_character_  # any calibration outside periods cannot be corrected
   )) %>% 
   filter(!is.na(date)) %>% 
-  mutate(year_month = floor_date(date, "month")) %>% 
-  rename("reaction_cell_pressure" = av_rxn_vessel_pressure)
-
+  mutate(year_month = floor_date(date, "month")) 
 
 # get linear models for sensitivity and pressure 
 
 lm_list_ch1 <- list(
-  period1 = lm(ch1_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period1")),
-  period2 = lm(ch1_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period2")),
-  period3 = lm(ch1_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period3")),
-  period4 = lm(ch1_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period4")),
-  period5 = lm(ch1_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period5")),
-  period6 = lm(ch1_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period6")),
-  period7 = lm(ch1_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period7")), 
-  period8 = lm(ch1_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period8")), 
-  period9 = lm(ch1_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period9")), 
-  period10 = lm(ch1_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period10"))
+  period1 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period1")),
+  period2 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period2")),
+  period3 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period3")),
+  period4 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period4")),
+  period5 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period5")),
+  period6 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period6")),
+  period7 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period7")), 
+  period8 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period8")), 
+  period9 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period9")), 
+  period10 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period10"))
 )
 
 
 lm_list_ch2 <- list(
-  period1 = lm(ch2_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period1")),
-  period2 = lm(ch2_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period2")),
-  period3 = lm(ch2_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period3")),
-  period4 = lm(ch2_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period4")),
-  period5 = lm(ch2_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period5")),
-  period6 = lm(ch2_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period6")),
-  period7 = lm(ch2_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period7")),
-  period8 = lm(ch2_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period8")), 
-  period9 = lm(ch2_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period9")), 
-  period10 = lm(ch2_sens ~ reaction_cell_pressure, data = subset(pressure_correction, period == "period10"))
+  period1 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period1")),
+  period2 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period2")),
+  period3 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period3")),
+  period4 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period4")),
+  period5 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period5")),
+  period6 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period6")),
+  period7 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period7")),
+  period8 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period8")), 
+  period9 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period9")), 
+  period10 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period10"))
 )
 
 get_period <- function(datetime) {
@@ -154,9 +173,8 @@ coef_tbl_ch2 <- map_dfr(names(lm_list_ch2), function(p) {
 
 ce_interp <- interpolate_ce %>%
   select(date, ce_interpolated) %>%
-  rename("ce" = ce_interpolated) |> 
+  rename("ce" = ce_interpolated) %>% 
   arrange(date)
-
 
   # processing the monthly param data to get 1 Hz calibration data 
   
@@ -187,12 +205,12 @@ ce_interp <- interpolate_ce %>%
       left_join(coef_tbl_ch2, by = "period") %>%
       mutate(
         ch1_sens = case_when(
-          period %in% lm_periods ~ intercept_ch1 + slope_ch1 * reaction_cell_pressure,
+          period %in% lm_periods ~ intercept_ch1 + slope_ch1 * av_rxn_vessel_pressure,
           period %in% interp_periods ~ NA_real_,
           TRUE ~ NA_real_
         ),
         ch2_sens = case_when(
-          period %in% lm_periods ~ intercept_ch2 + slope_ch2 * reaction_cell_pressure,
+          period %in% lm_periods ~ intercept_ch2 + slope_ch2 * av_rxn_vessel_pressure,
           period %in% interp_periods ~ NA_real_,
           TRUE ~ NA_real_
         )
@@ -203,14 +221,14 @@ ce_interp <- interpolate_ce %>%
       filter(zero_valve_1 == 1.0, zero_valve_2 == 1.0) %>%
       mutate(second = second(datetime)) %>%
       filter(between(second, 5, 15)) %>%
-      select(date = datetime, CH1_Hz, CH2_Hz) %>%
+      select(date = datetime, ch1_hz, ch2_hz) %>%
       arrange(date)
     
     if (nrow(zero_data) > 0) {
       df <- df %>%
         mutate(
-          ch1_zero = approx(zero_data$date, zero_data$CH1_Hz, xout = datetime, rule = 2)$y,
-          ch2_zero = approx(zero_data$date, zero_data$CH2_Hz, xout = datetime, rule = 2)$y
+          ch1_zero = approx(zero_data$date, zero_data$ch1_hz, xout = datetime, rule = 2)$y,
+          ch2_zero = approx(zero_data$date, zero_data$ch2_hz, xout = datetime, rule = 2)$y
         )
     } else {
       df <- df %>%
