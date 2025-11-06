@@ -177,17 +177,33 @@ ce_interp <- interpolate_ce %>%
   arrange(date)
 
   # processing the monthly param data to get 1 Hz calibration data 
+
+data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_2"
+out_dir <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data"
+param_files <- list.files(file.path(data_root),
+                          full.names = T, 
+                          pattern = "\\.parquet$",
+                          recursive = T)
+
+n_files <- length(param_files)
+
   
-  process_month <- function(f, out_dir = "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data/") {
-    message("Processing: ", f)
+  for (i in seq_along(param_files)){
+    f<- param_files[i]
+    message(sprintf("[%d/%d] Processing: %s", i, n_files, basename(f)))
     
     # Read parquet for one month
     df <- open_dataset(f, format = "parquet") %>%
       collect() %>%
       mutate(datetime = parse_excel_date(TheTime)) %>%
+      rename_all(tolower) %>% 
+      rename("av_rxn_vessel_pressure" = rxn_vessel_pressure) %>% 
       arrange(datetime)
     
-    if (nrow(df) == 0) return(NULL)
+    if (nrow(df) == 0) {
+      message("Skipping empty file: ", basename(f))
+      next
+    }
     
     # --- interpolate CE for this month only
     df <- df %>%
@@ -244,32 +260,32 @@ ce_interp <- interpolate_ce %>%
     out_file <- file.path(year_dir, basename(f))
     write_parquet(df, out_file)
     
-    return(out_file)
+    message("Saved: ", out_file)
   }
   
-  # -------------------------
-  # 4. Run over all files (parallel)
-  # -------------------------
-  data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_2"
-  param_files <- list.files(file.path(data_root),
-                            full.names = T, 
-                            pattern = "\\.parquet$",
-                            recursive = T)
-  
-  plan(multisession, workers = 4)  # adjust cores
-  future_walk(param_files, process_month)
-
-  
-  
-  
-  # checking
-  file_path <- "data/data/1_hz_cal_data_parquets/2023/NOx_params_2023_02-0.parquet"
-  
-  # Read the file
+  # # -------------------------
+  # # 4. Run over all files (parallel)
+  # # -------------------------
+  # data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_2"
+  # param_files <- list.files(file.path(data_root),
+  #                           full.names = T, 
+  #                           pattern = "\\.parquet$",
+  #                           recursive = T)
+  # 
+  # plan(multisession, workers = 4)  # adjust cores
+  # future_walk(param_files, process_month)
+  # 
+  # 
+  # 
+  # 
+  # # checking
+   file_path <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data/2020/param_2020_09.parquet"
+  # 
+  # # Read the file
   param_data <- arrow::read_parquet(file_path)
-  
-  # Quick overview of the dataset
-  glimpse(param_data) 
+  # 
+  # # Quick overview of the dataset
+   collect(param_data) 
   
   
   
