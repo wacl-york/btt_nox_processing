@@ -7,6 +7,7 @@ library(future)
 library(purrr)
 library(furrr)
 library(waclr)
+library(plotly)
 
 # read in the 36 hour calibrations
 
@@ -29,20 +30,20 @@ interp_ranges <- list(
 
 # --- Compute ce_interpolated ---
 interpolate_ce <- cal_coefficients %>%
-  filter(ce_zero > 0, ce_zero < 1) %>%
+  filter(ce_zero > 0, ce_zero < 1) %>% #removing bad ce's
   arrange(date) %>%
   mutate(
     date2 = as.Date(date),
     
     # --- Step 1: mark interpolation status ---
     interp_status = ifelse(
-      Reduce(`|`, lapply(interp_ranges, function(r) date >= r[1] & date <= r[2])),
+      Reduce(`|`, lapply(interp_ranges, function(r) date >= r[1] & date <= r[2])), #if dates are within the ranges we want to interpolate, if not we keep original ce
       "yes", "no"
     )) %>% 
   filter(!(interp_status == "no" & cal_flag1 == 1)) %>% #filter out any dipped cals when we are not interpolating 
-  filter(!(interp_status == "no" & cal_flag2 == 1))|>  
-  filter(!(interp_status == "no" & inlet_pressure < 199)) |>  
-  filter(!(interp_status == "no" & inlet_pressure > 300)) |> 
+  filter(!(interp_status == "no" & cal_flag2 == 1))|>  #filter out any no cal flow < 9.5
+  filter(!(interp_status == "no" & inlet_pressure < 199)) |>  #not including ce's where inlet pressure was too low
+  filter(!(interp_status == "no" & inlet_pressure > 300)) |>  #not including ce's where inlet pressure was too high
   mutate(
     # --- Step 2: compute ce_interpolated ---
     ce_interpolated = {
@@ -83,17 +84,17 @@ interpolate_ce <- cal_coefficients %>%
       ce_out
     }
   ) %>% 
-  filter(ce_interpolated > 0.45) %>% 
-  filter(ce_interpolated < 0.7)
+  filter(ce_interpolated > 0.45) %>% #remove any values too low
+  filter(ce_interpolated < 0.7) #remove any values too high
 
 
 # pressure interpolation 
 
 pressure_correction <- cal_coefficients |> 
-  filter(av_rxn_vessel_pressure < 400) |> 
-  filter(ch1_sens < 10) |> 
+  filter(av_rxn_vessel_pressure < 400) |> #get rid of silly high pressure
+  filter(ch1_sens < 10) |> #get rid of outlier
   mutate(date = as_datetime(date, tz = "UTC")) %>% 
-  mutate(period = case_when(
+  mutate(period = case_when( #here we are defining different pressure relationships that we have identified 
     date <= "2020-10-13 01:00:00" ~ "period1",
     date >= "2020-10-13 02:00:00" & date < as.Date("2021-01-11") ~ "period2",
     date >= as.Date("2021-01-11") & date < as.Date("2021-06-11") ~ "period3",
@@ -102,7 +103,6 @@ pressure_correction <- cal_coefficients |>
     date >= as.Date("2022-11-01") & date < as.Date("2023-10-19") ~ "period6",
     date >= as.Date("2023-10-19") & date < as.Date("2024-02-08") ~ "period7",
     date >= as.Date("2024-02-08") & date < as.Date("2025-02-03") ~ "period8",
-    #date >= as.Date("2024-10-28") & date < as.Date("2025-02-03") ~ "period9",
     date >= as.Date("2025-02-03") & date < as.Date("2025-03-18") ~ "period9",
     date >= as.Date("2025-03-18") & date <= max(date) ~ "period10",
     TRUE ~ NA_character_  # any calibration outside periods cannot be corrected
@@ -156,7 +156,17 @@ get_period <- function(datetime) {
 }
 
 lm_periods <- c("period1", "period3", "period4", "period7", "period8", "period10")
-interp_periods <- c("period2", "period5", "period6", "period9")
+interp_periods <- c("period2", "period5", "period6", "period9") #the linear relationships are not strong enough here, instead we just linearly interpolate
+
+
+# getting the pressure ranges for each linear model
+pressure_ranges <- pressure_correction %>%
+  group_by(period) %>%
+  summarise(
+    p_min = min(av_rxn_vessel_pressure, na.rm = TRUE),
+    p_max = max(av_rxn_vessel_pressure, na.rm = TRUE)
+  ) %>%
+  ungroup()
 
 
 # Extract coefficients for vectorized prediction
@@ -170,6 +180,9 @@ coef_tbl_ch2 <- map_dfr(names(lm_list_ch2), function(p) {
   tibble(period = p, intercept_ch2 = b[1], slope_ch2 = b[2])
 })
 
+# --- merge into coefficient tables ---
+coef_tbl_both <- coef_tbl_ch1 %>% left_join(coef_tbl_ch2, by = "period")
+coef_tbl_both_pressure <- coef_tbl_both %>% left_join(pressure_ranges, by = "period")
 
 ce_interp <- interpolate_ce %>%
   select(date, ce_interpolated) %>%
@@ -217,21 +230,59 @@ n_files <- length(param_files)
     
     # --- join model coefficients
     df <- df %>%
-      left_join(coef_tbl_ch1, by = "period") %>%
-      left_join(coef_tbl_ch2, by = "period") %>%
+      left_join(coef_tbl_both_pressure, by = "period") %>%
+      arrange(datetime) %>%
       mutate(
-        ch1_sens = case_when(
-          period %in% lm_periods ~ intercept_ch1 + slope_ch1 * av_rxn_vessel_pressure,
-          period %in% interp_periods ~ NA_real_,
+        ch1_sens_raw = case_when(
+          period %in% lm_periods &
+            av_rxn_vessel_pressure <= 40 &
+            av_rxn_vessel_pressure >= p_min &
+            av_rxn_vessel_pressure <= p_max ~
+            intercept_ch1 + slope_ch1 * av_rxn_vessel_pressure,
           TRUE ~ NA_real_
         ),
-        ch2_sens = case_when(
-          period %in% lm_periods ~ intercept_ch2 + slope_ch2 * av_rxn_vessel_pressure,
-          period %in% interp_periods ~ NA_real_,
+        ch2_sens_raw = case_when(
+          period %in% lm_periods &
+            av_rxn_vessel_pressure <= 40 &
+            av_rxn_vessel_pressure >= p_min &
+            av_rxn_vessel_pressure <= p_max ~
+            intercept_ch2 + slope_ch2 * av_rxn_vessel_pressure,
           TRUE ~ NA_real_
+        ),
+        
+        # --- Interpolate sensitivities in time for any missing values ---
+        ch1_sens = zoo::na.approx(ch1_sens_raw, x = datetime, na.rm = FALSE, rule = 2),
+        ch2_sens = zoo::na.approx(ch2_sens_raw, x = datetime, na.rm = FALSE, rule = 2)
+      ) %>%
+      
+      # --- Apply final physical filters ---
+      mutate(
+        ch1_sens = ifelse(
+          av_rxn_vessel_pressure > 40 |
+            inlet_pressure < 199 |
+            inlet_pressure > 300,
+          NA_real_, ch1_sens
+        ),
+        ch2_sens = ifelse(
+          av_rxn_vessel_pressure > 40 |
+            inlet_pressure < 199 |
+            inlet_pressure > 300,
+          NA_real_, ch2_sens
+        ),
+        ce = ifelse(
+          av_rxn_vessel_pressure > 40 |
+            inlet_pressure < 199 |
+            inlet_pressure > 300,
+          NA_real_, ce
         )
-      ) |> 
-      select(-intercept_ch1, -slope_ch1, -intercept_ch2, -slope_ch2)
+      ) %>%
+      
+      select(
+        -intercept_ch1, -slope_ch1,
+        -intercept_ch2, -slope_ch2,
+        -p_min, -p_max
+      )
+    
     
     zero_data <- df %>%
       filter(zero_valve_1 == 1.0, zero_valve_2 == 1.0) %>%
@@ -279,7 +330,7 @@ n_files <- length(param_files)
   # 
   # 
   # # checking
-   file_path <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data/2020/param_2020_09.parquet"
+  file_path <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data/2025/param_2025_04.parquet"
   # 
   # # Read the file
   param_data <- arrow::read_parquet(file_path)
@@ -288,7 +339,8 @@ n_files <- length(param_files)
    collect(param_data) 
   
   
-  
+  ggplot(param_data, aes(datetime, ch2_sens))+
+    geom_line()
   
   
   
