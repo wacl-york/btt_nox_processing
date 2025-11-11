@@ -16,9 +16,12 @@ all_files <- list.files(data_root, full.names = TRUE, pattern = "\\.csv$", recur
 test_files <- all_files[24000:24001]
 
 # processing function
+args = commandArgs(trailingOnly = TRUE)[1]
+i = as.numeric(args)+1
 
-for (i in seq_along(all_files)) {
-  file_5hz <- all_files[i]
+
+#for (i in seq_along(all_files)) {
+  file_5hz <- all_files[100]
   message(sprintf("[%d/%d] Processing: %s", i, length(all_files), basename(file_5hz)))
   
   # --- read the hourly 5Hz CSV ---
@@ -49,26 +52,28 @@ for (i in seq_along(all_files)) {
       ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz)) %>% 
     mutate(
       ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-3,
-      ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-3) - ch1_hz) / ce)  %>% 
+      ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-3) - ch1_hz) / ce)  
     mutate(unixTime = as.numeric(datetime), 
-           veloXaxs = "x", 
-           veloYaxs = "y", 
-           veloZaxs = "z", 
-           tempAir = "temp", 
-           presAtm = rnorm(nrow(df_5hz), 101325, 1000), 
+           veloXaxs = u, 
+           veloYaxs = vv, 
+           veloZaxs = w, 
+           tempAir = temp_sonic, 
+           presAtm = reading_data,
+           relative_humidity = "reading_data",
            distZaxsAbl = "abl", 
            distZaxsMeas = "meas", 
-           rtioMoleDryH2o = rnorm(nrow(df_5hz), 50, 20)) %>% 
+           rtioMoleDryH2o = eddy4R::rtio.mole.h2o.temp.pres.rh()) %>% 
   select(c(unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm, distZaxsAbl, distZaxsMeas, rtioMoleDryH2o, 
            ch1_hz, ch2_hz))
   
   # --- save in same structure as input ---
   out_file <- file.path(out_root, 
                         year_val, month_val, basename(file_5hz))
+  
   dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
   
   write_csv(df_5hz, out_file)
-}
+#}
 
 
 

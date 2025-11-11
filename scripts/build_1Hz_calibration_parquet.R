@@ -41,7 +41,7 @@ interpolate_ce <- cal_coefficients %>%
       "yes", "no"
     )) %>% 
   filter(!(interp_status == "no" & cal_flag1 == 1)) %>% #filter out any dipped cals when we are not interpolating 
-  filter(!(interp_status == "no" & cal_flag2 == 1))|>  #filter out any no cal flow < 9.5
+ # filter(!(interp_status == "no" & cal_flag2 == 1))|>  #filter out any no cal flow < 9.5
   filter(!(interp_status == "no" & inlet_pressure < 199)) |>  #not including ce's where inlet pressure was too low
   filter(!(interp_status == "no" & inlet_pressure > 300)) |>  #not including ce's where inlet pressure was too high
   mutate(
@@ -189,7 +189,7 @@ ce_interp <- interpolate_ce %>%
   rename("ce" = ce_interpolated) %>% 
   arrange(date)
 
-  # processing the monthly param data to get 1 Hz calibration data 
+# processing the monthly param data to get 1 Hz calibration data 
 
 data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_2"
 out_dir <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data"
@@ -249,30 +249,34 @@ n_files <- length(param_files)
             intercept_ch2 + slope_ch2 * av_rxn_vessel_pressure,
           TRUE ~ NA_real_
         ),
+        ch1_sens_coeff = approx(cal_coefficients$date, cal_coefficients$ch1_sens, xout = datetime, rule = 2)$y, 
+        ch2_sens_coeff = approx(cal_coefficients$date, cal_coefficients$ch2_sens, xout = datetime, rule = 2)$y, 
         
-        # --- Interpolate sensitivities in time for any missing values ---
-        ch1_sens = zoo::na.approx(ch1_sens_raw, x = datetime, na.rm = FALSE, rule = 2),
-        ch2_sens = zoo::na.approx(ch2_sens_raw, x = datetime, na.rm = FALSE, rule = 2)
-      ) %>%
+        # --- Final sensitivities ---
+        # If the pressure model has a valid value, use it
+        # Otherwise, fall back to the time-interpolated calibration sensitivity
+        ch1_sens = ifelse(!is.na(ch1_sens_raw), ch1_sens_raw, ch1_sens_coeff),
+        ch2_sens = ifelse(!is.na(ch2_sens_raw), ch2_sens_raw, ch2_sens_coeff)
+      ) %>% 
       
       # --- Apply final physical filters ---
       mutate(
         ch1_sens = ifelse(
           av_rxn_vessel_pressure > 40 |
             inlet_pressure < 199 |
-            inlet_pressure > 300,
+            inlet_pressure > 350,
           NA_real_, ch1_sens
         ),
         ch2_sens = ifelse(
           av_rxn_vessel_pressure > 40 |
             inlet_pressure < 199 |
-            inlet_pressure > 300,
+            inlet_pressure > 350,
           NA_real_, ch2_sens
         ),
         ce = ifelse(
           av_rxn_vessel_pressure > 40 |
             inlet_pressure < 199 |
-            inlet_pressure > 300,
+            inlet_pressure > 350,
           NA_real_, ce
         )
       ) %>%
@@ -286,9 +290,16 @@ n_files <- length(param_files)
     
     zero_data <- df %>%
       filter(zero_valve_1 == 1.0, zero_valve_2 == 1.0) %>%
-      mutate(second = second(datetime)) %>%
+      mutate(second = second(datetime), 
+             hour_block = floor_date(datetime, "hour")) %>%
       filter(between(second, 5, 15)) %>%
-      select(date = datetime, ch1_hz, ch2_hz) %>%
+      group_by(hour_block) %>% # we only want the zeros from the start of the hour (when we do a cal there are multiple zeros)
+      summarise(
+        date = min(datetime),
+        ch1_hz = median(ch1_hz, na.rm = TRUE), #take the median of the zero and interpolate that 
+        ch2_hz = median(ch2_hz, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
       arrange(date)
     
     if (nrow(zero_data) > 0) {
@@ -330,9 +341,9 @@ n_files <- length(param_files)
   # 
   # 
   # # checking
-  file_path <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data/2025/param_2025_04.parquet"
-  # 
-  # # Read the file
+  file_path <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data/2020/param_2020_10.parquet"   
+  
+# # Read the file
   param_data <- arrow::read_parquet(file_path)
   # 
   # # Quick overview of the dataset
@@ -341,7 +352,6 @@ n_files <- length(param_files)
   
   ggplot(param_data, aes(datetime, ch2_sens))+
     geom_line()
-  
   
   
   
