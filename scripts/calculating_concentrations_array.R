@@ -29,10 +29,10 @@ parse_excel_date <- function (x, tz = "UTC", type = "windows")
 
 # data roots ####
 
-data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/raw_data/five_hz"
-out_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/5Hz_input_files"
-met_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/raw_data/reading_met_data"
-cal_root  <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data"
+data_root <- "btt_processing/raw_data/five_hz"
+out_root <- "btt_processing/processing/5Hz_input_files"
+met_root <- "btt_processing/raw_data/reading_met_data"
+cal_root  <- "btt_processing/processing/1Hz_cal_data"
 
 
 all_files <- list.files(data_root, full.names = TRUE, pattern = "\\.csv$", recursive = TRUE)
@@ -176,7 +176,7 @@ i = as.numeric(args)+1
              relative_humidity = relative_humidity,
              distZaxsAbl = 1500, 
              distZaxsMeas = 190, 
-             rtioMoleDryH2o = "placeholder"
+             rtioMoleDryH2o = eddy4R::rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity)
     ) %>%
     select(
       unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
