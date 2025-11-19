@@ -41,26 +41,27 @@ parse_excel_date <- function (x, tz = "UTC", type = "windows")
 
 # data roots ####
 
-data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/raw_data/five_hz"
-out_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/5Hz_input_files"
-met_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/met_data_formatted"
-cal_root  <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data"
+data_root <- "/data/raw_data/five_hz/2025"
+out_root <- "/data/processing/5Hz_input_files"
+met_root <- "/data/processing/met_data_formatted"
+cal_root  <- "/data/processing/1Hz_cal_data"
 
+print("getting file list")
 
-all_files <- list.files(data_root, full.names = TRUE, pattern = "\\.csv$", recursive = TRUE)
-
-#test_files <- all_files[24000:24001]
+all_files = system(paste("find", data_root, " -type f -name '*.csv'"), intern = TRUE) %>% 
+  sort()
 
 # processing function ####
 args = commandArgs(trailingOnly = TRUE)[1]
 i = as.numeric(args)+1
 
+file_5hz <- all_files[i]
 
-#for (i in seq_along(all_files)) {
+base_5hz = basename(file_5hz)
 
-  i <- 39000 #placeholder if not using batch
-  
-  file_5hz <- all_files[i]
+fileDate = as.POSIXct(base_5hz, format = "NOx_5Hz_%y_%m_%d_%H%M%S.csv", tz = "UTC")
+
+if(fileDate > ymd_hms("2025-01-01 00:00:00")){
   
   message(sprintf("[%d/%d] Processing: %s", i, length(all_files), basename(file_5hz)))
   
@@ -91,7 +92,7 @@ i = as.numeric(args)+1
     distinct(sec, .keep_all = TRUE) 
   
   # ----------------------------------------------------------
-  # READ MATCHING READING DATA FILE(S)
+  # READ MATCHING READING DATA FILE
   # ----------------------------------------------------------
   reading_folder <- file.path(met_root, year_val, month_val)
   
@@ -102,31 +103,31 @@ i = as.numeric(args)+1
   reading_file <- file.path(reading_folder, wxt_filename)
   
   if (length(reading_candidates) > 0) {
+    reading_file <- reading_candidates[1]
     message(sprintf("Reading file found: %s", basename(reading_file)))
     
-    # Read with no headers, allowing missing values
+    # Read in
     df_reading <- read_csv(reading_file)
     
     df_reading <- df_reading %>%
-      mutate(,
-        sec = floor_date(datetime, "1 sec"),
-        # extract met variables (temporary assumption)
-        presAtm = X11,
-        relative_humidity = X7
-      ) %>%
-      select(datetime, sec, presAtm, relative_humidity)
-    
-  } else {
-    
-    warning(sprintf("No WXT file found in folder %s", reading_folder))
-    df_reading <- tibble(
-      datetime = as.POSIXct(character()),
-      sec = as.POSIXct(character()),
-      presAtm = NA_real_,
-      relative_humidity = NA_real_
-    )
-  }
-  
+          mutate(
+            sec = floor_date(datetime, "1 sec"),
+            # extract met variables (temporary assumption)
+            presAtm = X11,
+            relative_humidity = X7
+          ) %>%
+          select(datetime, sec, presAtm, relative_humidity) 
+        # here at some point I can filter to make sure we aren't including bad pressure and RH values 
+    } else {
+      
+      warning(sprintf("No WXT file found in folder %s", reading_folder))
+      df_reading <- tibble(
+        datetime = df_5hz$datetime,
+        sec = floor_date(df_5hz$datetime, "1 sec"),
+        presAtm = rnorm(nrow(df_5hz), 101325, 1000),
+        relative_humidity = rnorm(nrow(df_5hz), 50, 20)
+      )
+    }
   
   # ----------------------------------------------------------
   # JOIN ALL DATASETS
@@ -150,7 +151,6 @@ i = as.numeric(args)+1
   setkey(dt_5hz, sec)
   setkey(dt_reading, sec)
   dt_5hz <- dt_reading[dt_5hz]
-  # dt_5hz <- dt_reading[dt_5hz, roll = "nearest"]  # nearest-neighbor join
   
   # Convert back to tibble for dplyr manipulations
   df_5hz_final <- as_tibble(dt_5hz) %>%
@@ -159,21 +159,21 @@ i = as.numeric(args)+1
       ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
       ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-3,
       ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-3) - ch1_hz) / ce) %>% 
-      mutate(unixTime = as.numeric(datetime), 
-             veloXaxs = -vv, 
-             veloYaxs = u, 
-             veloZaxs = w, 
-             tempAir = temp_sonic, 
-             presAtm = presAtm,
-             relative_humidity = relative_humidity,
-             distZaxsAbl = 1500, 
-             distZaxsMeas = 190, 
-             rtioMoleDryH2o = "placeholder"
+    mutate(unixTime = as.numeric(datetime), 
+           veloXaxs = -vv, 
+           veloYaxs = u, 
+           veloZaxs = w, 
+           tempAir = temp_sonic, 
+           presAtm = presAtm,
+           relative_humidity = relative_humidity,
+           distZaxsAbl = 1500, 
+           distZaxsMeas = 190, 
+           rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity)
     ) %>%
     select(
       unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
       distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,
-      ch1_hz, ch2_hz, relative_humidity
+      rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, relative_humidity
     )
   
   # --- save in same structure as input ---
@@ -183,13 +183,16 @@ i = as.numeric(args)+1
   dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
   
   write_csv(df_5hz_final, out_file)
-#}
-
-
-
-
-
-
-
-
-
+  #}
+  
+}else{
+  print("no Reading Data")
+}
+  
+  
+  
+  
+  
+  
+  
+  
