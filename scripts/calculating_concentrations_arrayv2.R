@@ -41,10 +41,11 @@ parse_excel_date <- function (x, tz = "UTC", type = "windows")
 
 # data roots ####
 
-data_root <- "/data/raw_data/five_hz/2025"
+data_root <- "/data/raw_data/five_hz"
 out_root <- "/data/processing/5Hz_input_files"
 met_root <- "/data/processing/met_data_formatted"
 cal_root  <- "/data/processing/1Hz_cal_data"
+sam_input_data <- "data/raw_data/sam_input_data"
 
 print("getting file list")
 
@@ -56,12 +57,6 @@ args = commandArgs(trailingOnly = TRUE)[1]
 i = as.numeric(args)+1
 
 file_5hz <- all_files[i]
-
-base_5hz = basename(file_5hz)
-
-fileDate = as.POSIXct(base_5hz, format = "NOx_5Hz_%y_%m_%d_%H%M%S.csv", tz = "UTC")
-
-if(fileDate > ymd_hms("2025-01-01 00:00:00")){
   
   message(sprintf("[%d/%d] Processing: %s", i, length(all_files), basename(file_5hz)))
   
@@ -102,8 +97,7 @@ if(fileDate > ymd_hms("2025-01-01 00:00:00")){
   wxt_filename <- sprintf("WXT_%02d_%02d_%02d.dat", yy, mm, dd)
   reading_file <- file.path(reading_folder, wxt_filename)
   
-  if (length(reading_candidates) > 0) {
-    reading_file <- reading_candidates[1]
+  if (length(reading_file) > 0) {
     message(sprintf("Reading file found: %s", basename(reading_file)))
     
     # Read in
@@ -183,12 +177,7 @@ if(fileDate > ymd_hms("2025-01-01 00:00:00")){
   dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
   
   write_csv(df_5hz_final, out_file)
-  #}
-  
-}else{
-  print("no Reading Data")
-}
-  
+ 
   
   
   
