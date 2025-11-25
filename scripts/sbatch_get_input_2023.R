@@ -6,8 +6,8 @@ library(lubridate)
 
 user = system("echo $USER", intern = T)
 
-outputFile = "/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs/%x_%j_%a.log" #change to hardcoded path
-errFile = "/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs/%x_%j_%a.err"
+outputFile = "/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs_2023/%x_%j_%a.log" #change to hardcoded path
+errFile = "/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs_2023/%x_%j_%a.err"
 
 data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/raw_data/five_hz/2023"
 
@@ -44,7 +44,7 @@ message = c("#!/usr/bin/env bash",
             "module load Apptainer/latest",
             "",
             "# Commands to run",
-            paste0("apptainer exec --bind /mnt/scratch/projects/chem-cmde-2019/btt_processing/:/data/,/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/scripts/:/scripts/ /mnt/longship/projects/chem-cmde-2019/eddy4r/eddy4r.york_dev Rscript /scripts/get_flux_input.R $SLURM_ARRAY_TASK_ID")
+            paste0("apptainer exec --bind /mnt/scratch/projects/chem-cmde-2019/btt_processing/:/data/,/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/scripts/:/scripts/ /mnt/longship/projects/chem-cmde-2019/eddy4r/eddy4r.york_dev Rscript /scripts/get_flux_input_2023.R $SLURM_ARRAY_TASK_ID")
 )
 
 data_file = file(paste0('/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/sbatch/get_inputs_2023.sbatch'), open = "wt")
