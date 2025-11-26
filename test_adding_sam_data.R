@@ -7,8 +7,6 @@ library(tidyverse)
 library(arrow)
 library(data.table)
 
-
-
 # waclr dependency ####
 
 parse_unix_time <- function(x, tz = "UTC", origin = "1970-01-01") {
@@ -83,7 +81,7 @@ print("getting file list")
 all_files = system(paste("find", data_root, " -type f -name '*.csv'"), intern = TRUE) %>% 
   sort()
 
-i = 1000
+i = 40300
 
 file_5hz <- all_files[i]
 
@@ -125,68 +123,95 @@ wxt_filename <- sprintf("WXT_%02d_%02d_%02d.dat", yy, mm, dd)
 reading_file <- file.path(reading_folder, wxt_filename)
 
 if (file.exists(reading_file)) {
-  message(sprintf("Reading file found: %s", basename(reading_file)))
   
+  message(sprintf("Reading file found: %s", basename(reading_file)))
   source_type <- "WXT"
   
-  # Read in
   df_reading <- read_csv(reading_file)
   
-  df_reading <- df_reading %>%
-    mutate(
-      sec = floor_date(datetime, "1 sec"),
-      # extract met variables (temporary assumption)
-      presAtm = X11,
-      relative_humidity = X7
-    ) %>%
-    select(datetime, sec, presAtm, relative_humidity) 
-  # here at some point I can filter to make sure we aren't including bad pressure and RH values 
+  med_pres <- median(df_reading$X11, na.rm = TRUE)
   
-  
-  join_type <- "sec"
+  # -------------------------------------------------------
+  # CASE A: WXT pressure invalid
+  # -------------------------------------------------------
+  if (is.na(med_pres) || med_pres < 100) {
+    
+    warning("WXT pressure seems invalid (<100). Using placeholder values.")
+    
+    df_met <- tibble(
+      datetime = df_5hz$datetime,
+      sec      = floor_date(df_5hz$datetime, "1 sec"),
+      presAtm  = rnorm(nrow(df_5hz), 101325, 1000),
+      relative_humidity = rnorm(nrow(df_5hz), 50, 20)
+    )
+    
+    join_type <- "datetime"
+    
+  } else {
+    
+    # -------------------------------------------------------
+    # CASE B: WXT pressure OK → detailed QC
+    # -------------------------------------------------------
+    df_met <- df_reading %>%
+      mutate(
+        sec = floor_date(datetime, "1 sec"),
+        presAtm = X11,
+        relative_humidity = X10
+      ) %>%
+      select(datetime, sec, presAtm, relative_humidity) %>%
+      mutate(
+        presAtm = ifelse(presAtm < 700 | presAtm > 100000, NA, presAtm)
+      ) %>% 
+      mutate(presAtm = (zoo::na.locf(presAtm, na.rm = FALSE))*100) # the reading pressure data has 100X lower than Sam's input files
+    
+    join_type <- "sec"
+  }
   
 } else {
   
-  warning(sprintf("No WXT file found in folder, use Sam input file", reading_folder))
+  # -------------------------------------------------------
+  # FALLBACK: SAM INPUT FILE
+  # -------------------------------------------------------
+  warning(sprintf("No WXT file found in %s — using Sam file fallback", reading_folder))
   
   doy <- yday(min(df_5hz$datetime))
   doy_folder <- sprintf("%03d", doy)
   
   sam_folder <- file.path(sam_root, year_val, doy_folder)
   
-  pattern_sam <- sprintf("NOx_5Hz_%02d%02d%02d_%02d0000.csv",
-                     yy %% 100, mm, dd, as.numeric(hour_val))
+  pattern_sam <- sprintf("NOx_5Hz_%02d_%02d_%02d_%02d0000.csv",
+                         yy %% 100, mm, dd, as.numeric(hour_val))
   
   sam_file <- file.path(sam_folder, pattern_sam)
   
-  
   if (!file.exists(sam_file)) {
+    
     warning("Fallback SAM file does not exist — using NA placeholders.")
     
     source_type <- "PLACEHOLDER"
     
-    df_reading <- tibble(
-         datetime = df_5hz$datetime,
-         sec = floor_date(df_5hz$datetime, "1 sec"),
-         presAtm = rnorm(nrow(df_5hz), 101325, 1000),
-         relative_humidity = rnorm(nrow(df_5hz), 50, 20)
-    )%>%
-      select(datetime, sec, presAtm, relative_humidity) 
-  
+    df_met <- tibble(
+      datetime = df_5hz$datetime,
+      sec = floor_date(df_5hz$datetime, "1 sec"),
+      presAtm = rnorm(nrow(df_5hz), 101325, 1000),
+      relative_humidity = rnorm(nrow(df_5hz), 50, 20)
+    )
+    
+    join_type <- "datetime"
+    
   } else {
     
     message(sprintf("Using fallback Sam file: %s", basename(sam_file)))
-    
     source_type <- "SAM"
     
-    df_sam <- read_csv(sam_file, show_col_types = FALSE) %>% 
+    df_sam <- read_csv(sam_file, show_col_types = FALSE) %>%
       mutate(
-        datetime = as.POSIXct(date, format = "%Y-%m-%d %H:%M:OS", tz = "UTC"), 
-        relative_humidity = backcalc_RH(T_air, p_air, FD_mole_H2O), 
+        datetime = as.POSIXct(date, format = "%Y-%m-%d %H:%M:OS", tz = "UTC"),
+        relative_humidity = backcalc_RH(T_air, p_air, FD_mole_H2O),
         presAtm = p_air
       )
     
-    df_reading <- df_sam %>%
+    df_met <- df_sam %>%
       select(datetime, presAtm, relative_humidity) %>%
       distinct(datetime, .keep_all = TRUE)
     
@@ -194,10 +219,6 @@ if (file.exists(reading_file)) {
   }
 }
 
-# QA THE MET DATA
-
-df_reading <- df_reading %>% 
-  filter()
 
 # ----------------------------------------------------------
 # JOIN ALL DATASETS
@@ -210,31 +231,26 @@ df_5hz_final <- df_5hz %>%
 # Convert to data.tables
 dt_5hz <- as.data.table(df_5hz_final)
 dt_cal <- as.data.table(df_cal %>% select(sec, ch1_zero, ch2_zero, ch1_sens, ch2_sens, ce))
-dt_reading <- as.data.table(df_reading %>% select(sec, presAtm, relative_humidity))
+dt_met <- as.data.table(df_met)
 
 # --- Join calibration data by exact sec ---
 setkey(dt_5hz, sec)
 setkey(dt_cal, sec)
 dt_5hz <- dt_cal[dt_5hz]  # exact join on sec
 
-# --- Join reading data by exact sec ---
-setkey(dt_5hz, datetime)
-# setkey(dt_reading, sec)
-# dt_5hz <- dt_reading[dt_5hz]
-
 if (join_type == "sec") {
-  dt_reading <- dt_reading[, .(sec, presAtm, relative_humidity)]
-  setkey(dt_reading, sec)
+  dt_met <- dt_met[, .(sec, presAtm, relative_humidity)]
+  setkey(dt_met, sec)
   
   dt_5hz[, sec := floor_date(datetime, "1 sec")]
   setkey(dt_5hz, sec)
   
-  dt_5hz <- dt_reading[dt_5hz]
+  dt_5hz <- dt_met[dt_5hz]
 }
 
 if (join_type == "datetime") {
-  setkey(dt_reading, datetime)
-  dt_5hz <- dt_reading[dt_5hz, roll = "nearest"]
+  setkey(dt_met, datetime)
+  dt_5hz <- dt_met[dt_5hz, roll = "nearest"]
 }
 
 # Convert back to tibble for dplyr manipulations
@@ -243,7 +259,7 @@ df_5hz_final <- as_tibble(dt_5hz) %>%
     ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
     ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
     ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-3,
-    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-3) - ch1_hz) / ce) %>% 
+    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-3) - ch1_hz)) %>% 
   mutate(unixTime = as.numeric(datetime), 
          veloXaxs = -vv, 
          veloYaxs = u, 
@@ -253,12 +269,12 @@ df_5hz_final <- as_tibble(dt_5hz) %>%
          relative_humidity = relative_humidity,
          distZaxsAbl = 1500, 
          distZaxsMeas = 190, 
-         rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity)
+         #rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity)
   ) %>%
   select(
     unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
-    distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,
-    rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, relative_humidity
+    distZaxsAbl, distZaxsMeas, #rtioMoleDryH2o,
+    rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, relative_humidity, ce
   )
 
 # --- save in same structure as input ---

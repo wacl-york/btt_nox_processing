@@ -7,8 +7,8 @@
 #SBATCH --account=chem-cmde-2019        # Project account to use
 #SBATCH --mail-type=END,FAIL            # Mail events (NONE, BEGIN, END, FAIL, ALL)
 #SBATCH --mail-user=cw1781@york.ac.uk   # Where to send mail
-#SBATCH --output=/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs/%x_%j_%a.log       # Standard output log
-#SBATCH --error=/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs/%x_%j_%a.err        # Standard error log
+#SBATCH --output=/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs_2022/%x_%j_%a.log       # Standard output log
+#SBATCH --error=/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs_2022/%x_%j_%a.err        # Standard error log
 #SBATCH --array=0-8266          # Array range
 # Abort if any command fails
 set -e
@@ -20,4 +20,4 @@ module purge
 module load Apptainer/latest
 
 # Commands to run
-apptainer exec --bind /mnt/scratch/projects/chem-cmde-2019/btt_processing/:/data/,/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/scripts/:/scripts/ /mnt/longship/projects/chem-cmde-2019/eddy4r/eddy4r.york_dev Rscript /scripts/get_flux_input.R $SLURM_ARRAY_TASK_ID
+apptainer exec --bind /mnt/scratch/projects/chem-cmde-2019/btt_processing/:/data/,/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/scripts/:/scripts/ /mnt/longship/projects/chem-cmde-2019/eddy4r/eddy4r.york_dev Rscript /scripts/get_flux_input_2022.R $SLURM_ARRAY_TASK_ID
