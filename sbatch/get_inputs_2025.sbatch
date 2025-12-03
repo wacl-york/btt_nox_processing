@@ -7,8 +7,8 @@
 #SBATCH --account=chem-cmde-2019        # Project account to use
 #SBATCH --mail-type=END,FAIL            # Mail events (NONE, BEGIN, END, FAIL, ALL)
 #SBATCH --mail-user=cw1781@york.ac.uk   # Where to send mail
-#SBATCH --output=/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs/%x_%j_%a.log       # Standard output log
-#SBATCH --error=/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs/%x_%j_%a.err        # Standard error log
+#SBATCH --output=/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs_2025/%x_%j_%a.log       # Standard output log
+#SBATCH --error=/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs_2025/%x_%j_%a.err        # Standard error log
 #SBATCH --array=0-7139          # Array range
 # Abort if any command fails
 set -e
