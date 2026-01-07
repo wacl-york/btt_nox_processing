@@ -91,7 +91,7 @@ preprocess_wxt_year <- function(met_root, year, out_root) {
     message("✔ Saved to: ", target_path)
   }
   
-  message("\nDONE.")  # <- Now correctly outside the for loop
+  message("\nDONE.")  
 }
 
 

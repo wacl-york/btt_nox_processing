@@ -70,10 +70,10 @@ backcalc_RH <- function(T_air, pressure, FD_mole_H2O) {
 # data roots ####
 
 data_root <- "/data/raw_data/five_hz/2023"
-out_root <- "/data/processing/5Hz_input_files"
+out_root <- "/data/processing/ec/in"
 met_root <- "/data/processing/met_data_formatted"
 cal_root  <- "/data/processing/1Hz_cal_data"
-sam_root <- "data/raw_data/sam_input_data"
+sam_root <- "/data/sam_input_data"
 
 print("getting file list")
 
@@ -177,7 +177,7 @@ if (file.exists(reading_file)) {
   doy <- yday(min(df_5hz$datetime))
   doy_folder <- sprintf("%03d", doy)
   
-  sam_folder <- file.path(sam_root, year_val, doy_folder)
+  sam_folder <- file.path(sam_root, year_val, doy)
   
   pattern_sam <- sprintf("NOx_5Hz_%02d_%02d_%02d_%02d0000.csv",
                          yy %% 100, mm, dd, as.numeric(hour_val))
@@ -253,28 +253,33 @@ if (join_type == "datetime") {
   dt_5hz <- dt_met[dt_5hz, roll = "nearest"]
 }
 
+# keep the 5 Hz instrument time
+if ("i.datetime" %in% names(dt_5hz)) {
+  dt_5hz[, datetime := i.datetime]
+  dt_5hz[, i.datetime := NULL]
+}
+
 # Convert back to tibble for dplyr manipulations
 df_5hz_final <- as_tibble(dt_5hz) %>%
   mutate(
     ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
     ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
-    ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-3,
-    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-3) - ch1_hz)) %>% 
+    ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-12,
+    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-12) - ch1_hz)) %>% 
   mutate(unixTime = as.numeric(datetime), 
          veloXaxs = -vv, 
          veloYaxs = u, 
          veloZaxs = w, 
-         tempAir = temp_sonic, 
+         tempAir = (temp_sonic^2)/403, 
          presAtm = presAtm,
          relative_humidity = relative_humidity,
          distZaxsAbl = 1500, 
-         distZaxsMeas = 190, 
-         rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity)
-  ) %>%
+         distZaxsMeas = 177) %>% 
+  mutate(rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity))%>%
   select(
     unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
     distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,
-    rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, relative_humidity, ce
+    rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, ce
   )
 
 # --- save in same structure as input ---

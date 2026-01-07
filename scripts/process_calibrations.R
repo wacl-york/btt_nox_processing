@@ -112,32 +112,37 @@ for (i in 1:length(cal_times)) {
   av_rxn_vessel_pressure <- mean(ten$rxn_vessel_pressure, na.rm = TRUE)
   inlet_pressure <- median(param_data$inlet_pressure, na.rm = TRUE)
   
-  
+  # 10 sccm flow
   ten_multi <- ten %>%
     mutate(idx = row_number()) |>
     filter(idx > 120)
   
+  # 18 sccm flow
   eighteen <- param_data %>% 
     filter(no_cal_flow_set == 18) %>%
     mutate(idx = row_number()) |>
     filter(idx > 300)
   
+  # 5 sccm flow
   five <- param_data %>% 
     filter(no_cal_flow_set == 5) %>% 
     mutate(idx = row_number()) |>
     filter(idx > 300)
   
+  # 15 sccm flow
   fifteen <- param_data %>% 
     filter(no_cal_flow_set == 15) %>% 
     mutate(idx = row_number()) |>
     filter(idx > 300)
   
+  # 2.5 sccm flow
   two.five <- param_data %>% 
     filter(no_cal_flow_set == 2.5) %>% 
     mutate(idx = row_number()) |>
     filter(idx > 200) |> 
     filter(idx < 600)
   
+  # zero counts 
   zero_data <- param_data |>
     filter(zero_valve_2 == 1.0, 
            zero_valve_1 == 1.0) |>
@@ -410,8 +415,8 @@ for (i in 1:length(cal_times)) {
            ce_zero = 1 - (((gpt_0_blc_1-zero_2_ch2) - (gpt_1_blc_1-zero_1_ch2)) 
                           / ((gpt_0_blc_0-zero_2_ch2) - (gpt_1_blc_0-zero_1_ch2))))
   
-  ce <- con_eff$ce 
-  ce_zero <- con_eff$ce_zero 
+   ce <- con_eff$ce #original CE calculation
+  ce_zero <- con_eff$ce_zero #calculation taking off the zeros 
   
   all_stages <- bind_rows(gpt_0_blc_1,
                           gpt_1_blc_1,

@@ -69,8 +69,8 @@ backcalc_RH <- function(T_air, pressure, FD_mole_H2O) {
 
 # data roots ####
 
-data_root <- "/data/raw_data/five_hz/2024"
-out_root <- "/data/processing/ec/in"
+data_root <- "/data/raw_data/five_hz/2022"
+out_root <- "/data/processing/ec/sensitivity_tests/test0"
 met_root <- "/data/processing/met_data_formatted"
 cal_root  <- "/data/processing/1Hz_cal_data"
 sam_root <- "/data/sam_input_data"
@@ -87,7 +87,7 @@ file_5hz <- all_files[i]
 
 # --- read the hourly 5Hz CSV ---
 df_5hz <- read_csv(file_5hz) %>% 
-  mutate(datetime = parse_excel_date(TheTime)) %>% 
+  mutate(datetime = parse_excel_date(TheTime, tz = "UTC")) %>% 
   ungroup() %>% 
   arrange(datetime) %>% 
   select(-c(CH1_sens, CH2_sens))
@@ -275,7 +275,8 @@ df_5hz_final <- as_tibble(dt_5hz) %>%
          relative_humidity = relative_humidity,
          distZaxsAbl = 1500, 
          distZaxsMeas = 177) %>% 
-  mutate(rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity))%>%
+  mutate(rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity))%>% 
+  #mutate(rtioMoleDryH2o = rtioMoleDryH2o*0.1) %>% 
   select(
     unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
     distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,

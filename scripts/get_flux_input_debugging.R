@@ -1,4 +1,3 @@
-
 #  creating concentration files 
 
 # library
@@ -69,11 +68,11 @@ backcalc_RH <- function(T_air, pressure, FD_mole_H2O) {
 
 # data roots ####
 
-data_root <- "/data/raw_data/five_hz/2024"
-out_root <- "/data/processing/ec/in"
-met_root <- "/data/processing/met_data_formatted"
-cal_root  <- "/data/processing/1Hz_cal_data"
-sam_root <- "/data/sam_input_data"
+data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/raw_data/five_hz/2022"
+out_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec/in"
+met_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/met_data_formatted"
+cal_root  <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data"
+sam_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/sam_input_data"
 
 print("getting file list")
 
@@ -83,6 +82,12 @@ all_files = system(paste("find", data_root," -type f -name '*.csv'"), intern = T
 args = commandArgs(trailingOnly = TRUE)[1]
 i = as.numeric(args)+1
 
+i = 3879
+
+i_range <- 3854:3878
+
+#for (i in i_range) {
+
 file_5hz <- all_files[i]
 
 # --- read the hourly 5Hz CSV ---
@@ -91,6 +96,8 @@ df_5hz <- read_csv(file_5hz) %>%
   ungroup() %>% 
   arrange(datetime) %>% 
   select(-c(CH1_sens, CH2_sens))
+
+#write_csv(df_5hz, "check_unix.csv")
 
 if (nrow(df_5hz) == 0) next
 
@@ -259,13 +266,15 @@ if ("i.datetime" %in% names(dt_5hz)) {
   dt_5hz[, i.datetime := NULL]
 }
 
+
 # Convert back to tibble for dplyr manipulations
 df_5hz_final <- as_tibble(dt_5hz) %>%
   mutate(
     ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
     ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
     ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-12,
-    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-12) - ch1_hz)) %>% 
+    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-12) - ch1_hz)) %>%
+  mutate(end_NO2 = ch2_hz/ ce) %>% 
   mutate(unixTime = as.numeric(datetime), 
          veloXaxs = -vv, 
          veloYaxs = u, 
@@ -274,18 +283,66 @@ df_5hz_final <- as_tibble(dt_5hz) %>%
          presAtm = presAtm,
          relative_humidity = relative_humidity,
          distZaxsAbl = 1500, 
-         distZaxsMeas = 177) %>% 
-  mutate(rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity))%>%
-  select(
-    unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
-    distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,
-    rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, ce
-  )
+          distZaxsMeas = 177) #}
+
+df_5Hz_24 <- df_5hz_final
+
+bind <- rbind(df_5Hz_1, df_5Hz_2, df_5Hz_3, df_5Hz_4, df_5Hz_5, 
+              df_5Hz_6, df_5Hz_7, df_5Hz_8, df_5Hz_9, df_5Hz_10, 
+              df_5Hz_11, df_5Hz_12, df_5Hz_13, df_5Hz_14, df_5Hz_15, 
+              df_5Hz_16, df_5Hz_17, df_5Hz_18, df_5Hz_19, df_5Hz_20, df_5Hz_21, 
+              df_5Hz_22, df_5Hz_23, df_5Hz_24)
+
+
+bind %>% 
+  #pivot_longer(cols = c(ch1_sens, ch2_sens), 
+             #  names_to = "channel", values_to = "sens") %>% 
+ggplot(aes(datetime, ch2_zero)) +
+  geom_line() +
+  theme_bw()
+
+ggplotly()
+
+
+#%>% 
+   # mutate(rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity))%>%
+   # select(
+   #   unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
+   #   distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,
+   #   rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, ce
+   # )
 
 # --- save in same structure as input ---
-out_file <- file.path(out_root, 
-                      year_val, month_val, basename(file_5hz))
+#out_file <- file.path(out_root, 
+                    #  year_val, month_val, basename(file_5hz))
 
-dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
+#dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
 
-write_csv(df_5hz_final, out_file)
+#write_csv(df_5hz_final, out_file)
+
+
+write_csv(df_5hz_final, "check_unix_final.csv")
+
+
+
+check <- read_csv("check_unix_final.csv") %>% 
+  mutate(date = as.POSIXct(unixTime, origin = "1970-01-01", tz = "UTC")) %>% 
+  mutate(date = as.POSIXct(date, format = "%Y-%m-%d %H:%M:%OS")) 
+
+
+# checking sensitivity
+
+df_5hz_final %>% 
+  pivot_longer(cols = c(ch2_hz, end_NO2), 
+              names_to = "type", values_to = "concentration") %>% 
+ggplot(aes(datetime, concentration, color = type)) +
+  geom_line(alpha = 0.5)
+
+df_5hz_final %>% 
+  pivot_longer(cols = c(ch1_zero, ch2_zero), 
+               names_to = "type", values_to = "zero") %>% 
+  ggplot(aes(datetime, zero, color = type)) +
+  geom_line(alpha = 0.5) +
+  theme_bw()
+
+

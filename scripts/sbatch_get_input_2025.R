@@ -6,8 +6,8 @@ library(lubridate)
 
 user = system("echo $USER", intern = T)
 
-outputFile = "/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs/%x_%j_%a.log" #change to hardcoded path
-errFile = "/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs/%x_%j_%a.err"
+outputFile = "/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs_2025/%x_%j_%a.log" #change to hardcoded path
+errFile = "/mnt/scratch/users/cw1781/btt_cal_processing/btt_nox_processing/logs/make_ec_inputs_2025/%x_%j_%a.err"
 
 data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/raw_data/five_hz/2025"
 
