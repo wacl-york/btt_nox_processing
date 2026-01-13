@@ -20,8 +20,7 @@ files_coefficients <- list.files(path = "/mnt/scratch/projects/chem-cmde-2019/bt
 cal_coefficients <- files_coefficients %>%
   map_df(read_csv) 
 
-# conversion efficiency calculation 
-
+# define interpolation windows - based on previous assessment of CE data 
 interp_ranges <- list(
   c("2022-09-07", "2024-02-20"),
   c("2024-04-20", "2025-04-20"),
