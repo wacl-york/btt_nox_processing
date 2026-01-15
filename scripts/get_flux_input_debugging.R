@@ -92,12 +92,10 @@ file_5hz <- all_files[i]
 
 # --- read the hourly 5Hz CSV ---
 df_5hz <- read_csv(file_5hz) %>% 
-  mutate(datetime = parse_excel_date(TheTime)) %>% 
+  mutate(datetime = parse_excel_date(TheTime, tz = "UTC")) %>% 
   ungroup() %>% 
   arrange(datetime) %>% 
   select(-c(CH1_sens, CH2_sens))
-
-#write_csv(df_5hz, "check_unix.csv")
 
 if (nrow(df_5hz) == 0) next
 
@@ -257,7 +255,7 @@ if (join_type == "sec") {
 
 if (join_type == "datetime") {
   setkey(dt_met, datetime)
-  dt_5hz <- dt_met[dt_5hz, roll = "nearest"]
+  dt_5hz <- dt_met[dt_5hz, roll = "nearest"] #might need to change this 
 }
 
 # keep the 5 Hz instrument time
@@ -266,15 +264,14 @@ if ("i.datetime" %in% names(dt_5hz)) {
   dt_5hz[, i.datetime := NULL]
 }
 
-
 # Convert back to tibble for dplyr manipulations
-df_5hz_final <- as_tibble(dt_5hz) %>%
+df_5hz_final2 <- as_tibble(dt_5hz) %>%
   mutate(
     ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
     ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
     ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-12,
-    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-12) - ch1_hz)) %>%
-  mutate(end_NO2 = ch2_hz/ ce) %>% 
+    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens) - ch1_hz * 1e-12)) %>% 
+    #ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-12) - ch1_hz)) %>% #maybe the * 1e-12 is in the wrong place?? 
   mutate(unixTime = as.numeric(datetime), 
          veloXaxs = -vv, 
          veloYaxs = u, 
@@ -283,66 +280,79 @@ df_5hz_final <- as_tibble(dt_5hz) %>%
          presAtm = presAtm,
          relative_humidity = relative_humidity,
          distZaxsAbl = 1500, 
-          distZaxsMeas = 177) #}
-
-df_5Hz_24 <- df_5hz_final
-
-bind <- rbind(df_5Hz_1, df_5Hz_2, df_5Hz_3, df_5Hz_4, df_5Hz_5, 
-              df_5Hz_6, df_5Hz_7, df_5Hz_8, df_5Hz_9, df_5Hz_10, 
-              df_5Hz_11, df_5Hz_12, df_5Hz_13, df_5Hz_14, df_5Hz_15, 
-              df_5Hz_16, df_5Hz_17, df_5Hz_18, df_5Hz_19, df_5Hz_20, df_5Hz_21, 
-              df_5Hz_22, df_5Hz_23, df_5Hz_24)
-
-
-bind %>% 
-  #pivot_longer(cols = c(ch1_sens, ch2_sens), 
-             #  names_to = "channel", values_to = "sens") %>% 
-ggplot(aes(datetime, ch2_zero)) +
-  geom_line() +
-  theme_bw()
-
-ggplotly()
-
-
-#%>% 
-   # mutate(rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity))%>%
-   # select(
-   #   unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
-   #   distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,
-   #   rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, ce
-   # )
+         distZaxsMeas = 177) 
+  mutate(rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity))%>%
+  select(
+    unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
+    distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,
+    rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, ce
+  )
 
 # --- save in same structure as input ---
-#out_file <- file.path(out_root, 
-                    #  year_val, month_val, basename(file_5hz))
+out_file <- file.path(out_root, 
+                      year_val, month_val, basename(file_5hz))
 
-#dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
 
-#write_csv(df_5hz_final, out_file)
+write_csv(df_5hz_final, out_file)
+df_5Hz_24 <- df_5hz_final
 
-
-write_csv(df_5hz_final, "check_unix_final.csv")
-
-
-
-check <- read_csv("check_unix_final.csv") %>% 
-  mutate(date = as.POSIXct(unixTime, origin = "1970-01-01", tz = "UTC")) %>% 
-  mutate(date = as.POSIXct(date, format = "%Y-%m-%d %H:%M:%OS")) 
-
-
-# checking sensitivity
-
-df_5hz_final %>% 
-  pivot_longer(cols = c(ch2_hz, end_NO2), 
-              names_to = "type", values_to = "concentration") %>% 
-ggplot(aes(datetime, concentration, color = type)) +
-  geom_line(alpha = 0.5)
-
-df_5hz_final %>% 
-  pivot_longer(cols = c(ch1_zero, ch2_zero), 
-               names_to = "type", values_to = "zero") %>% 
-  ggplot(aes(datetime, zero, color = type)) +
-  geom_line(alpha = 0.5) +
-  theme_bw()
-
-
+# bind <- rbind(df_5Hz_1, df_5Hz_2, df_5Hz_3, df_5Hz_4, df_5Hz_5, 
+#               df_5Hz_6, df_5Hz_7, df_5Hz_8, df_5Hz_9, df_5Hz_10, 
+#               df_5Hz_11, df_5Hz_12, df_5Hz_13, df_5Hz_14, df_5Hz_15, 
+#               df_5Hz_16, df_5Hz_17, df_5Hz_18, df_5Hz_19, df_5Hz_20, df_5Hz_21, 
+#               df_5Hz_22, df_5Hz_23, df_5Hz_24)
+# 
+# 
+# bind %>% 
+#   #pivot_longer(cols = c(ch1_sens, ch2_sens), 
+#              #  names_to = "channel", values_to = "sens") %>% 
+# ggplot(aes(datetime, ch2_zero)) +
+#   geom_line() +
+#   theme_bw()
+# 
+# ggplotly()
+# 
+# 
+# #%>% 
+#    # mutate(rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity))%>%
+#    # select(
+#    #   unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
+#    #   distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,
+#    #   rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, ce
+#    # )
+# 
+# # --- save in same structure as input ---
+# #out_file <- file.path(out_root, 
+#                     #  year_val, month_val, basename(file_5hz))
+# 
+# #dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
+# 
+# #write_csv(df_5hz_final, out_file)
+# 
+# 
+# write_csv(df_5hz_final, "check_unix_final.csv")
+# 
+# 
+# 
+# check <- read_csv("check_unix_final.csv") %>% 
+#   mutate(date = as.POSIXct(unixTime, origin = "1970-01-01", tz = "UTC")) %>% 
+#   mutate(date = as.POSIXct(date, format = "%Y-%m-%d %H:%M:%OS")) 
+# 
+# 
+# # checking sensitivity
+# 
+# df_5hz_final %>% 
+#   pivot_longer(cols = c(ch2_hz, end_NO2), 
+#               names_to = "type", values_to = "concentration") %>% 
+# ggplot(aes(datetime, concentration, color = type)) +
+#   geom_line(alpha = 0.5)
+# 
+# df_5hz_final %>% 
+#   pivot_longer(cols = c(ch1_zero, ch2_zero), 
+#                names_to = "type", values_to = "zero") %>% 
+#   ggplot(aes(datetime, zero, color = type)) +
+#   geom_line(alpha = 0.5) +
+#   theme_bw()
+# 
+# 

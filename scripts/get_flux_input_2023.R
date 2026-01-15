@@ -87,7 +87,7 @@ file_5hz <- all_files[i]
 
 # --- read the hourly 5Hz CSV ---
 df_5hz <- read_csv(file_5hz) %>% 
-  mutate(datetime = parse_excel_date(TheTime)) %>% 
+  mutate(datetime = parse_excel_date(TheTime, tz = "UTC")) %>% 
   ungroup() %>% 
   arrange(datetime) %>% 
   select(-c(CH1_sens, CH2_sens))
@@ -250,7 +250,7 @@ if (join_type == "sec") {
 
 if (join_type == "datetime") {
   setkey(dt_met, datetime)
-  dt_5hz <- dt_met[dt_5hz, roll = "nearest"]
+  dt_5hz <- dt_met[dt_5hz, roll = "nearest"] #might need to change this 
 }
 
 # keep the 5 Hz instrument time
@@ -265,7 +265,7 @@ df_5hz_final <- as_tibble(dt_5hz) %>%
     ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
     ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
     ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-12,
-    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-12) - ch1_hz)) %>% 
+    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens) - ch1_hz)* 1e-12) %>% #maybe the * 1e-12 is in the wrong place?? 
   mutate(unixTime = as.numeric(datetime), 
          veloXaxs = -vv, 
          veloYaxs = u, 
