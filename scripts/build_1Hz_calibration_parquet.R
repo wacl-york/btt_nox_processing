@@ -18,7 +18,10 @@ files_coefficients <- list.files(path = "/mnt/scratch/projects/chem-cmde-2019/bt
 
 
 cal_coefficients <- files_coefficients %>%
-  map_df(read_csv) 
+  map_df(read_csv) %>% 
+  filter(!no_cal_flow < 5) %>% #removing any calibrations where the no cal flow went below 5 (when it is set at 10sccm)
+  filter(!ch1_sens < 1) %>% 
+  filter(!ch2_sens < 1)
 
 # define interpolation windows - based on previous assessment of CE data 
 interp_ranges <- list(
@@ -103,7 +106,7 @@ pressure_correction <- cal_coefficients |>
     date >= as.Date("2023-10-19") & date < as.Date("2024-02-08") ~ "period7",
     date >= as.Date("2024-02-08") & date < as.Date("2025-02-03") ~ "period8",
     date >= as.Date("2025-02-03") & date < as.Date("2025-03-18") ~ "period9",
-    date >= as.Date("2025-03-18") & date <= max(date) ~ "period10",
+    date >= as.Date("2025-03-18") & date <= as.Date("2026-12-30")  ~ "period10",
     TRUE ~ NA_character_  # any calibration outside periods cannot be corrected
   )) %>% 
   filter(!is.na(date)) %>% 
@@ -149,7 +152,7 @@ get_period <- function(datetime) {
     datetime >= as.Date("2023-10-19") & datetime < as.Date("2024-02-08") ~ "period7",
     datetime >= as.Date("2024-02-08") & datetime < as.Date("2025-02-03") ~ "period8",
     datetime >= as.Date("2025-02-03") & datetime < as.Date("2025-03-18") ~ "period9",
-    datetime >= as.Date("2025-03-18") & datetime <= max(datetime) ~ "period10",
+    datetime >= as.Date("2025-03-18") & datetime <= as.Date("2026-12-30") ~ "period10",
     TRUE ~ NA_character_  
   )
 }
@@ -207,7 +210,7 @@ n_files <- length(param_files)
     # Read parquet for one month
     df <- open_dataset(f, format = "parquet") %>%
       collect() %>%
-      mutate(datetime = parse_excel_date(TheTime)) %>%
+      mutate(datetime = parse_excel_date(TheTime, tz = "UTC")) %>%
       rename_all(tolower) %>% 
       rename("av_rxn_vessel_pressure" = rxn_vessel_pressure) %>% 
       arrange(datetime)
