@@ -48,12 +48,13 @@ library(dplyr)
 library(arrow)
 library(tidyr)
 library(lubridate)
+library(waclr)
 
 data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/raw_data/params"
 data_out  <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit"
 
-years  <- 2020:2025
-months <- sprintf("%02d", 1:12)
+years  <- 2022:2022
+months <- sprintf("%02d", 7:12)
 
 # Helper: get last param file in a folder
 get_last_param_file <- function(folder) {
@@ -128,14 +129,17 @@ for (yr in years) {
 
 # check_parquet_file <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_2/2022/param_2022_02.parquet"
 # 
-# check_parquet_file2 <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_2/2022/param_2022_01.parquet"
-# 
-# check_parquet<- open_dataset(check_parquet_file, format = "parquet") %>%
-#   collect() %>% 
-#   mutate(datetime = parse_excel_date(TheTime, tz = "UTC"))
-# 
-# 
-# head(check_parquet$datetime)
+ check_parquet_file2 <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit/2025/param_2025_03.parquet"
+ 
+ check_parquet<- open_dataset(check_parquet_file2, format = "parquet") %>%
+   collect() %>% 
+   mutate(datetime = parse_excel_date(TheTime, tz = "UTC"))
+ 
+ 
+ head(check_parquet$datetime)
+ tail(check_parquet$datetime)
+ 
+ 
 # 
 # 
 # check_parquet2<- open_dataset(check_parquet_file2, format = "parquet") %>%

@@ -20,8 +20,11 @@ files_coefficients <- list.files(path = "/mnt/scratch/projects/chem-cmde-2019/bt
 cal_coefficients <- files_coefficients %>%
   map_df(read_csv) %>% 
   filter(!no_cal_flow < 5) %>% #removing any calibrations where the no cal flow went below 5 (when it is set at 10sccm)
-  filter(!ch1_sens < 1) %>% 
-  filter(!ch2_sens < 1)
+  filter(!ch1_sens < 1) %>% #removing any calibrations where sensitiivty is wrong
+  filter(!ch2_sens < 1) |> 
+  filter(!date == "2025-10-17 12:00:00") %>% #dodgy cal (after instrument switched back on? multi cal day)
+  filter(!date == "2021-01-14 09:00:00") %>% #inlet pressure is messed up on this cal
+  filter(!date == "2021-01-12 21:00:00") #inlet pressure also messed up on this cal
 
 # define interpolation windows - based on previous assessment of CE data 
 interp_ranges <- list(
@@ -193,8 +196,9 @@ ce_interp <- interpolate_ce %>%
 
 # processing the monthly param data to get 1 Hz calibration data 
 
-data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_2"
+data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit"
 out_dir <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data"
+
 param_files <- list.files(file.path(data_root),
                           full.names = T, 
                           pattern = "\\.parquet$",

@@ -69,7 +69,7 @@ backcalc_RH <- function(T_air, pressure, FD_mole_H2O) {
 
 # data roots ####
 
-data_root <- "/data/raw_data/five_hz/2023"
+data_root <- "/data/raw_data/five_hz/2022/09"
 out_root <- "/data/processing/ec/in"
 met_root <- "/data/processing/met_data_formatted"
 cal_root  <- "/data/processing/1Hz_cal_data"

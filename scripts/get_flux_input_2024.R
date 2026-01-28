@@ -261,11 +261,18 @@ if ("i.datetime" %in% names(dt_5hz)) {
 
 # Convert back to tibble for dplyr manipulations
 df_5hz_final <- as_tibble(dt_5hz) %>%
+  # mutate(
+  #   ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
+  #   ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
+  #   ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-12,
+  #   ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens) - ch1_hz)* 1e-12) %>% #maybe the * 1e-12 is in the wrong place?? 
   mutate(
     ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
     ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
-    ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-12,
-    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens) - ch1_hz)* 1e-12) %>% #maybe the * 1e-12 is in the wrong place?? 
+    ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens,
+    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens) - ch1_hz)) %>% 
+  mutate(ch1_hz = ch1_hz * 1e-12, 
+         ch2_hz = ch2_hz * 1e-12) %>% 
   mutate(unixTime = as.numeric(datetime), 
          veloXaxs = -vv, 
          veloYaxs = u, 

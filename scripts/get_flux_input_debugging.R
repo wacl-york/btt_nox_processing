@@ -82,7 +82,7 @@ all_files = system(paste("find", data_root," -type f -name '*.csv'"), intern = T
 args = commandArgs(trailingOnly = TRUE)[1]
 i = as.numeric(args)+1
 
-i = 3879
+i = 6530
 
 i_range <- 3854:3878
 
@@ -265,13 +265,19 @@ if ("i.datetime" %in% names(dt_5hz)) {
 }
 
 # Convert back to tibble for dplyr manipulations
-df_5hz_final2 <- as_tibble(dt_5hz) %>%
-  mutate(
-    ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
-    ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
-    ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-12,
-    ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens) - ch1_hz * 1e-12)) %>% 
-    #ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens * 1e-12) - ch1_hz)) %>% #maybe the * 1e-12 is in the wrong place?? 
+df_5hz_old <- as_tibble(dt_5hz) %>%
+     mutate(
+       ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
+       ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
+       ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-12,
+       ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens) - ch1_hz)* 1e-12) %>% #maybe the * 1e-12 is in the wrong place?? 
+    # mutate(
+    #   ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
+    #   ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
+    #   ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens,
+    #   ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens) - ch1_hz)) %>% 
+    # mutate(ch1_hz = ch1_hz * 1e-12, 
+    #        ch2_hz = ch2_hz * 1e-12) %>% 
   mutate(unixTime = as.numeric(datetime), 
          veloXaxs = -vv, 
          veloYaxs = u, 
@@ -281,12 +287,45 @@ df_5hz_final2 <- as_tibble(dt_5hz) %>%
          relative_humidity = relative_humidity,
          distZaxsAbl = 1500, 
          distZaxsMeas = 177) 
-  mutate(rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity))%>%
+  #mutate(rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity))%>%
   select(
     unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
-    distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,
+    distZaxsAbl, distZaxsMeas, #rtioMoleDryH2o,
     rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, ce
   )
+  
+  
+  df_5hz_new <- as_tibble(dt_5hz) %>%
+    # mutate(
+    #   ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
+    #   ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
+    #   ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-12,
+    #   ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens) - ch1_hz)* 1e-12) %>% #maybe the * 1e-12 is in the wrong place?? 
+     mutate(
+       ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
+       ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
+       ch1_hz_raw  = (ch1_hz - ch1_zero) / ch1_sens,
+       ch2_hz_raw = (((ch2_hz - ch2_zero) / ch2_sens) - ch1_hz_raw)) %>% 
+     mutate(ch1_hz_final = ch1_hz_raw * 1e-12, 
+            ch2_hz_final = ch2_hz_raw * 1e-12) %>% 
+    mutate(unixTime = as.numeric(datetime), 
+           veloXaxs = -vv, 
+           veloYaxs = u, 
+           veloZaxs = w, 
+           tempAir = (temp_sonic^2)/403, 
+           presAtm = presAtm,
+           relative_humidity = relative_humidity,
+           distZaxsAbl = 1500, 
+           distZaxsMeas = 177) 
+
+
+ggplot(df_5hz_new, aes(datetime, ch2_hz_final))+
+  geom_line()
+
+
+ggplot(df_5hz_old, aes(datetime, ch2_hz))+
+  geom_line()
+
 
 # --- save in same structure as input ---
 out_file <- file.path(out_root, 
@@ -296,6 +335,38 @@ dir.create(dirname(out_file), recursive = TRUE, showWarnings = FALSE)
 
 write_csv(df_5hz_final, out_file)
 df_5Hz_24 <- df_5hz_final
+
+df_5hz_final2 %>% 
+  mutate(count = row_number()) %>% 
+  ggplot(aes(count, rtioMoleDryNO)) +
+  geom_line()+
+  theme_bw()
+
+version_1<- df_5hz_final2 %>% 
+  mutate(count = row_number()) %>% 
+  select(c(count, rtioMoleDryNO_1 = rtioMoleDryNO, rtioMoleDryNO2_1 = rtioMoleDryNO2))
+  
+version_2<- df_5hz_final_new %>% 
+  mutate(count = row_number()) %>% 
+  select(c(count, rtioMoleDryNO_2 = rtioMoleDryNO, rtioMoleDryNO2_2 = rtioMoleDryNO2))
+
+
+bind_both <- left_join(version_1, version_2, by = "count")
+
+
+bind_both %>% 
+  filter(count >= 1) %>% 
+  filter(count <= 2000) %>% 
+   pivot_longer(cols = c(rtioMoleDryNO2_2, rtioMoleDryNO2_1), 
+                names_to = "version", values_to = "no2_conc") %>% 
+  ggplot(aes(count, no2_conc, color = version))+
+  geom_line(alpha = 0.3)
+
+ggplotly()
+
+
+
+
 
 # bind <- rbind(df_5Hz_1, df_5Hz_2, df_5Hz_3, df_5Hz_4, df_5Hz_5, 
 #               df_5Hz_6, df_5Hz_7, df_5Hz_8, df_5Hz_9, df_5Hz_10, 

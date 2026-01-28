@@ -20,17 +20,26 @@ cal_coefficients <- files_coefficients %>%
   map_df(read_csv) 
 
 
-cal_coefficients %>% 
-  filter(av_rxn_vessel_pressure < 400) |> #get rid of silly high pressure
-  filter(ch1_sens < 10) %>% 
-  pivot_longer(cols = c(ch1_sens, ch2_sens), 
-               names_to = "channel", values_to = "sensitivity") %>% 
-  ggplot(aes(date, sensitivity, color = channel)) +
-  geom_line() +
-  theme_bw()
+# cal_coefficients %>% 
+#   filter(av_rxn_vessel_pressure < 400) |> #get rid of silly high pressure
+#   filter(ch1_sens < 10) %>% 
+#   pivot_longer(cols = c(ch1_sens, ch2_sens), 
+#                names_to = "channel", values_to = "sensitivity") %>% 
+#   ggplot(aes(date, sensitivity, color = channel)) +
+#   geom_line() +
+#   theme_bw()
 
 
-pressure_correction <- cal_coefficients |> 
+cal_coefficients_new <- cal_coefficients %>%
+  filter(!no_cal_flow < 5) %>% #removing any calibrations where the no cal flow went below 5 (when it is set at 10sccm)
+  filter(!ch1_sens < 1) %>% #removing any calibrations where sensitiivty is wrong
+  filter(!ch2_sens < 1) |> 
+  filter(!date == "2025-10-17 12:00:00") %>% #dodgy cal (after instrument switched back on? multi cal day)
+  filter(!date == "2021-01-14 09:00:00") %>% #inlet pressure is messed up on this cal
+  filter(!date == "2021-01-12 21:00:00") #inlet pressure also messed up on this cal
+
+
+pressure_correction_old <- cal_coefficients |> 
   filter(av_rxn_vessel_pressure < 400) |> #get rid of silly high pressure
   filter(ch1_sens < 10) |> #get rid of outlier
   mutate(date = as_datetime(date, tz = "UTC")) %>% 

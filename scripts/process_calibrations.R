@@ -10,7 +10,7 @@ all_cal_times <- read_csv("data/data/cal_times_all.csv") |>
   mutate(date2 = as.Date(date)) |> 
   filter(!(date2 %in% c("2023-03-30", "2023-04-29", "2024-04-11", "2024-04-12", "2024-05-09", "2023-08-08", "2025-02-01",
                         "2025-02-02"))) |>
-  filter(!(date >= as.Date("2025-02-22") & date <= as.Date("2025-03-04"))) |> 
+  filter(!(date >= as.Date("2025-02-22") & date <= as.Date("2025-03-04"))) |>
   select(date) 
 
 cal_file <- all_cal_times |>
