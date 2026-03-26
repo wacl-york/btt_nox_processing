@@ -68,7 +68,7 @@ backcalc_RH <- function(T_air, pressure, FD_mole_H2O) {
 
 # data roots ####
 
-data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/raw_data/five_hz/2022"
+data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/raw_data/five_hz/2023"
 out_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec/in"
 met_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/met_data_formatted"
 cal_root  <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data"
@@ -82,7 +82,7 @@ all_files = system(paste("find", data_root," -type f -name '*.csv'"), intern = T
 args = commandArgs(trailingOnly = TRUE)[1]
 i = as.numeric(args)+1
 
-i = 6530
+i = 4000
 
 i_range <- 3854:3878
 

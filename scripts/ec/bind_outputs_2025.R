@@ -86,7 +86,26 @@ outputsToLoad = outputs |>
 
 i = as.numeric(Sys.getenv('SLURM_ARRAY_TASK_ID'))+1
 
-dat = map_df(outputsToLoad$data[[i]]$filePath, read.csv)
+if(outputsToLoad$data[[i]]$fileType[1] == "foot"){
+  dat = map_df(
+    outputsToLoad$data[[i]]$filePath,
+    function (x) {
+      readr::read_csv(x) %>% 
+        dplyr::mutate(
+          value = round(value, 5),
+          unixTimeMin = floor(unixTimeMin)
+        )}
+  )
+}else{
+  dat = map_df(
+    outputsToLoad$data[[i]]$filePath, 
+    function (x) {
+      readr::read_csv(x) %>% 
+        dplyr::mutate(
+          unixTimeMin = floor(unixTimeMin)
+        )}
+  )
+}
 
 if(!dir.exists(outputsToLoad$outDir[i])){
   dir.create(outputsToLoad$outDir[i], recursive = T)

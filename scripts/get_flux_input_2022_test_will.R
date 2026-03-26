@@ -278,6 +278,10 @@ df_5hz_final <- as_tibble(dt_5hz) %>%
   mutate( # pretty sure this is right.
     no_c =  ((ch1_hz - ch1_zero) / ch1_sens)*1e-12,
     noc_c = (((ch2_hz - ch2_zero) / ch2_sens)*1e-12) - no_c
+  ) %>% 
+  mutate( # what if we got them the wrong way around.
+    no_d =  ((ch1_hz - ch1_zero) / ch1_sens)*1e-12,
+    noc_d = (((ch2_hz - ch2_zero) / ch2_sens)*1e-12) 
   ) 
 # --- save in same structure as input ---
 out_file <- file.path(out_root, 

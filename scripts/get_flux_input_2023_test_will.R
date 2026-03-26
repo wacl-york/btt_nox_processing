@@ -70,7 +70,7 @@ backcalc_RH <- function(T_air, pressure, FD_mole_H2O) {
 # data roots ####
 
 data_root <- "/data/raw_data/five_hz/2023"
-out_root <- "/data/processing/ec/in"
+out_root <- "/data/processing/ec/in_test/will"
 met_root <- "/data/processing/met_data_formatted"
 cal_root  <- "/data/processing/1Hz_cal_data"
 sam_root <- "/data/sam_input_data"
@@ -261,32 +261,28 @@ if ("i.datetime" %in% names(dt_5hz)) {
 
 # Convert back to tibble for dplyr manipulations
 df_5hz_final <- as_tibble(dt_5hz) %>%
-  # mutate(
-  #   ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
-  #   ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
-  #   ch1_hz  = (ch1_hz - ch1_zero) / ch1_sens * 1e-12,
-  #   ch2_hz = (((ch2_hz - ch2_zero) / ch2_sens) - ch1_hz)* 1e-12) %>% #maybe the * 1e-12 is in the wrong place?? 
   mutate(
     ch1_hz = ifelse(ch1_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch1_hz),
-    ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz),
-    ch1_hz  = ((ch1_hz - ch1_zero) / ch1_sens) * 1e-12,
-    ch2_hz = ((ch2_hz - ch2_zero) / ch2_sens)* 1e-12) %>% 
-  mutate(unixTime = as.numeric(datetime), 
-         veloXaxs = -vv, 
-         veloYaxs = u, 
-         veloZaxs = w, 
-         tempAir = (temp_sonic^2)/403, 
-         presAtm = presAtm,
-         relative_humidity = relative_humidity,
-         distZaxsAbl = 1500, 
-         distZaxsMeas = 177) %>% 
-  mutate(rtioMoleDryH2o = eddy4R.york::def.rtio.mole.h2o.temp.pres.rh(tempAir, presAtm, relative_humidity))%>%
-  select(
-    unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
-    distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,
-    rtioMoleDryNO = ch1_hz, rtioMoleDryNO2 = ch2_hz, ce
-  )
-
+    ch2_hz = ifelse(ch2_hz < 0 | no_valve == 1 | zero_valve_1 == 1 | no_cal == 1, NA, ch2_hz)
+  ) %>% 
+  mutate( # orignal 
+    no_a  = (ch1_hz - ch1_zero) / ch1_sens * 1e-12,
+    noc_a = (((ch2_hz - ch2_zero) / ch2_sens) - no_a)* 1e-12
+  ) %>% #maybe the * 1e-12 is in the wrong place??
+  mutate(
+    no_b  = (ch1_hz - ch1_zero) / ch1_sens,
+    noc_b =  ((ch2_hz - ch2_zero) / ch2_sens) - no_b
+  ) %>%
+  mutate(no_b = no_b * 1e-12,
+         noc_b = noc_b * 1e-12) %>%
+  mutate( # pretty sure this is right.
+    no_c =  ((ch1_hz - ch1_zero) / ch1_sens)*1e-12,
+    noc_c = (((ch2_hz - ch2_zero) / ch2_sens)*1e-12) - no_c
+  ) %>% 
+  mutate( # what if we got them the wrong way around.
+    no_d =  ((ch2_hz - ch1_zero) / ch2_sens)*1e-12,
+    noc_d = (((ch1_hz - ch1_zero) / ch1_sens)*1e-12) - no_d
+  ) 
 # --- save in same structure as input ---
 out_file <- file.path(out_root, 
                       year_val, month_val, basename(file_5hz))
