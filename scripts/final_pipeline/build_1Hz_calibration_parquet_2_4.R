@@ -1,4 +1,14 @@
-# getting 1 Hz calibration data
+#!/usr/bin/env Rscript
+#SBATCH --job-name=cal_1Hz
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=64G
+#SBATCH --time=02:00:00
+#SBATCH --account=chem-cmde-2019
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=cw1781@york.ac.uk
+#SBATCH --output=/mnt/scratch/users/cw1781/btt_cal_processing/logs/cal_1Hz_%j.out
+#SBATCH --error=/mnt/scratch/users/cw1781/btt_cal_processing/logs/logs/cal_1Hz_%j.err
 
 # library
 library(tidyverse)
@@ -7,7 +17,6 @@ library(future)
 library(purrr)
 library(furrr)
 library(waclr)
-library(plotly)
 
 # read in the 36 hour calibrations
 
@@ -362,17 +371,17 @@ n_files <- length(param_files)
   # 
   # 
   # # checking
-  file_path <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data/2020/param_2020_10.parquet"   
-  
-# # Read the file
-  param_data <- arrow::read_parquet(file_path)
-  # 
-  # # Quick overview of the dataset
-   collect(param_data) 
-  
-  
-  ggplot(param_data, aes(datetime, ch2_sens))+
-    geom_line()
+#   file_path <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data/2020/param_2020_10.parquet"   
+#   
+# # # Read the file
+#   param_data <- arrow::read_parquet(file_path)
+#   # 
+#   # # Quick overview of the dataset
+#    collect(param_data) 
+#   
+#   
+#   ggplot(param_data, aes(datetime, ch2_sens))+
+#     geom_line()
   
   
   
