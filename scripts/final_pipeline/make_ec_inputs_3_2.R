@@ -46,6 +46,8 @@ year_arg = as.numeric(args[2])
 
 # data roots ####
 
+# might have to make changes here and also to the sbatch files as we have moved raw_data to longship
+
 data_root <- paste0("/data/raw_data/five_hz/", year_arg)
 out_root <- "/data/processing/ec_2/in"
 cal_root  <- "/data/processing/1Hz_cal_data"
@@ -154,7 +156,7 @@ file_start <- ymd_hms(
   tz = "UTC"
 )
 
-df_sona <- if (file.exists(sona_file)) {
+dt_sona <- if (file.exists(sona_file)) {
   result <- tryCatch(
     read_sona_co2(sona_file, file_start),
     error = function(e) { warning("Failed to read SONA file: ", e$message); NULL }
@@ -174,7 +176,6 @@ df_sona <- if (file.exists(sona_file)) {
 dt_5hz <- as.data.table(df_5hz_final)
 dt_cal <- as.data.table(df_cal %>% select(sec, ch1_zero, ch2_zero, ch1_sens, ch2_sens, ce))
 dt_ERA5 <- as.data.table(ERA5_all_times)
-dt_sona <- as.data.table(df_sona)
 
 # --- Join calibration data by exact sec ---
 setkey(dt_5hz, sec)

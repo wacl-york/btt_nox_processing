@@ -6,7 +6,7 @@ library(lubridate)
 library(waclr)
 
 # data paths
-data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/raw_data/params"
+data_root <- "/mnt/longship/projects/chem-cmde-2019/btt_processing/raw_data/params" #recently changes to longship
 data_out  <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit"
 
 # change depending on what you want to process
