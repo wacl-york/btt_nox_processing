@@ -7,8 +7,8 @@
 #SBATCH --account=chem-cmde-2019        # Project account to use
 #SBATCH --mail-type=END,FAIL            # Mail events (NONE, BEGIN, END, FAIL, ALL)
 #SBATCH --mail-user=cw1781@york.ac.uk   # Where to send mail
-#SBATCH --output=/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec_logs2/logs_2020/%x_%j_%a.log       # Standard output log
-#SBATCH --error=/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec_logs2/logs_2020/%x_%j_%a.err        # Standard error log
+#SBATCH --output=/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec_logs_lags/logs_2020/%x_%j_%a.log       # Standard output log
+#SBATCH --error=/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec_logs_lags/logs_2020/%x_%j_%a.err        # Standard error log
 #SBATCH --array=0-2824          # Array range
 # purge any existing modules
 system('module purge')

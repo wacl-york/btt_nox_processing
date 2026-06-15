@@ -110,8 +110,9 @@ ggplotly()
 
 cal_coefficients %>% 
   mutate(year = year(date)) %>% 
-  filter(date >= "2024-12-01 00:00:00") %>% 
-  filter(date <= "2026-03-30 00:00:00") %>% 
+  # filter(date >= "2024-12-01 00:00:00") %>% 
+  # filter(date <= "2026-03-30 00:00:00") %>% 
+  rename("Channel 1" = )
   pivot_longer(cols = c(ch1_sens, ch2_sens), 
                names_to = "channel", values_to = "sens") %>% 
   ggplot(aes(date, sens, color = channel)) +

@@ -15,9 +15,9 @@ if (is.na(year_arg) || !year_arg %in% 2020:2025) {
   stop("Please provide a valid year (2020-2025) as a command-line argument")
 }
 
-runID           <- paste0("standard_", year_arg)
-inputPath       <- paste0("/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec_2/out/BTT/standard_", year_arg)
-boundOutputPath <- paste0("/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec_2/out/BTT/standard_", year_arg, "_bound")
+runID           <- paste0("constrain_lags_", year_arg)
+inputPath       <- paste0("/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec_2/out/BTT/constrain_lags_", year_arg)
+boundOutputPath <- paste0("/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec_2/out/BTT/constrain_lags_", year_arg, "_bound")
 
 analysisText <- "NOx_5Hz"
 types <- c("mean", "ACF", "error", "isca", "foot", "spec", "itc", "stna", "lod", "lagTimes")
@@ -128,10 +128,10 @@ for (i in 1:nrow(toLoadtoDB)) {
     con,
     glue::glue(
       "
-      CREATE TABLE {{toLoadtoDB$tableName[i]}} AS
-      SELECT *
-      FROM read_parquet('{{toLoadtoDB$loadPath[i]}}', hive_partitioning = true)
-      ",
+    CREATE TABLE {{toLoadtoDB$tableName[i]}} AS
+    SELECT *
+    FROM read_parquet('{{toLoadtoDB$loadPath[i]}}', hive_partitioning = true, union_by_name = true)
+    ",
       .open = "{{", .close = "}}", sep = ""
     )
   )
