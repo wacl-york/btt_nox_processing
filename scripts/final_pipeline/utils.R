@@ -43,3 +43,20 @@ get_period <- function(datetime) {
     TRUE ~ NA_character_
   )
 }
+
+
+
+
+logs_path <- function(runID, filename = "") {
+  
+  log_dir <- file.path(
+    "/mnt/scratch/projects/chem-cmde-2019/btt_processing/logs",
+    runID
+  )
+  
+  if (!dir.exists(log_dir)) {
+    dir.create(log_dir, recursive = TRUE)
+  }
+  
+  file.path(log_dir, filename)
+}

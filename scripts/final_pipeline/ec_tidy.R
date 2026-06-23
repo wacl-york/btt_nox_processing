@@ -101,7 +101,13 @@ ec_tidy_array_task = function(ecOutputsCollated, SLURM_ARRAY_TASK_ID, types){
   # if this a type we want to bind, do that first
   if(fileType %in% types){
     
-    dat = purrr::map_df(data$filePath, read.csv)
+    dat = purrr::map_df(
+      data$filePath,
+      purrr::possibly(
+        ~ read.csv(.x),
+        otherwise = NULL
+      )
+    )
     
     if(fileType == "foot"){
       

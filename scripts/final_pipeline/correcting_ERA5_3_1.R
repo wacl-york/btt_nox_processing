@@ -19,7 +19,7 @@ ggplot(ERA5_pressure, aes(valid_time, sp))+
 # Define Constants
 g <- 9.80665
 Rd <- 287.05
-dz <- 190  # Height of BT Tower
+dz <- 177  # Height of BT Tower
 
 ERA5_pressure_corrected = ERA5_pressure %>% 
   mutate(pres_190m_pa = sp * exp((-g * dz) / (Rd * t2m))) %>% 
