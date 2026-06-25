@@ -7,7 +7,7 @@ library(paletteer)
 # checking the modelled pressure data 
 
 
-ERA5_pressure = read_csv("/mnt/scratch/projects/chem-cmde-2019/btt_processing/raw_data/ERA5/reanalysis-era5-single-levels-timeseries-sfcf2tgx155.csv")
+ERA5_pressure = read_csv("/mnt/longship/projects/chem-cmde-2019/btt_processing/raw_data/ERA5/reanalysis-era5-single-levels-timeseries-sfcf2tgx155.csv")
 
 
 head(ERA5_pressure)
@@ -19,7 +19,7 @@ ggplot(ERA5_pressure, aes(valid_time, sp))+
 # Define Constants
 g <- 9.80665
 Rd <- 287.05
-dz <- 177  # Height of BT Tower
+dz <- 190  # Height of BT Tower
 
 ERA5_pressure_corrected = ERA5_pressure %>% 
   mutate(pres_190m_pa = sp * exp((-g * dz) / (Rd * t2m))) %>% 
