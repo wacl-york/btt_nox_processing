@@ -112,8 +112,8 @@ ec_tidy_array_task = function(ecOutputsCollated, SLURM_ARRAY_TASK_ID, types){
     if(fileType == "foot"){
       
       dat = dat |> 
-        dplyr::mutate(value = round(value, 5)) |> 
-        dplyr::filter(value != 0)
+        dplyr::mutate(value = round(value, 5)) #|> 
+       # dplyr::filter(value != 0)
     }
     
     if(!dir.exists(outDir)){

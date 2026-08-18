@@ -14,7 +14,7 @@ connect_to_db = function(read_only = TRUE){
   
   con = DBI::dbConnect(
     drv = duckdb::duckdb(),
-    dbdir = "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec_2/duckdb/ec_BT.duckdb",
+    dbdir = "/mnt/longship/projects/chem-cmde-2019/btt_processing/processing/ec_2/duckdb/ec_BT.duckdb",
     read_only = read_only
   )
   
