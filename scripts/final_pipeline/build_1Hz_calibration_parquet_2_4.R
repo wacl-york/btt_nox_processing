@@ -162,7 +162,8 @@ lm_list_ch2 <- list(
   period10 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period10")), 
   period11 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period11")), 
   period12 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period12")), 
-  period13 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period13"))
+  period13 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period13")),
+  period14 = lm(ch2_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period14"))
 )
 
 get_period <- function(datetime) {
@@ -180,12 +181,13 @@ get_period <- function(datetime) {
     datetime >= as.Date("2025-06-05") & datetime < as.Date("2025-11-13") ~ "period11",
     datetime >= as.Date("2025-11-13") & datetime < as.Date("2025-12-30") ~ "period12",
     datetime >= as.Date("2025-12-30") & datetime <= as.Date("2026-12-30") ~ "period13",
+    datetime >= as.Date("2026-07-16") & datetime < as.Date("2026-12-31") ~ "period14",
     TRUE ~ NA_character_  
   )
 }
 
 lm_periods <- c("period1", "period3", "period4", "period7", "period8", "period10", "period11", "period12", "period13")
-interp_periods <- c("period2", "period5", "period6", "period9") #the linear relationships are not strong enough here, instead we just linearly interpolate
+interp_periods <- c("period2", "period5", "period6", "period9", "period14") #the linear relationships are not strong enough here, instead we just linearly interpolate
 
 
 # getting the pressure ranges for each linear model
@@ -228,7 +230,31 @@ param_files <- list.files(file.path(data_root),
                           pattern = "\\.parquet$",
                           recursive = T)
 
+#n_files <- length(param_files)
+
+# ---- Select files to process based on SETTINGS ----
+file_in_range <- function(f, from, to) {
+  rng <- open_dataset(f, format = "parquet") |>
+    select(TheTime) |>
+    summarise(mn = min(TheTime, na.rm = TRUE),
+              mx = max(TheTime, na.rm = TRUE)) |>
+    collect()
+  if (nrow(rng) == 0 || is.na(rng$mx)) return(FALSE)
+  mn <- parse_excel_date(rng$mn, tz = "UTC")
+  mx <- parse_excel_date(rng$mx, tz = "UTC")
+  after_start <- is.null(from) || mx >= as.POSIXct(from, tz = "UTC")
+  before_end  <- is.null(to)   || mn <= as.POSIXct(to, tz = "UTC") + days(1)
+  after_start && before_end
+}
+
+param_files <- param_files[map_lgl(param_files, file_in_range,
+                                   from = process_from, to = process_to)]
 n_files <- length(param_files)
+message("Processing ", n_files, " files: ", paste(basename(param_files), collapse = ", "))
+
+# ---- SETTINGS: change these to control what gets reprocessed ----
+process_from <- "2026-03-01"   # set to NULL to process everything
+process_to   <- NULL           # set to e.g. "2026-06-30", or NULL for no end date
 
   
   for (i in seq_along(param_files)){

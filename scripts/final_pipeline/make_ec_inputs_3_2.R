@@ -212,7 +212,7 @@ df_5hz_final <- as_tibble(dt_5hz) %>%
          rtioMoleDryH2o = rtioMoleDryH2O,
          rtioMoleDryco2 = co2_ppm/1e6,
          distZaxsAbl = 1500, 
-         distZaxsMeas = 177) %>% 
+         distZaxsMeas = 190) %>% 
   select(
     unixTime, veloXaxs, veloYaxs, veloZaxs, tempAir, presAtm,
     distZaxsAbl, distZaxsMeas, rtioMoleDryH2o,

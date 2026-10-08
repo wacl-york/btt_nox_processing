@@ -16,8 +16,8 @@ all_cal_times <- read_csv("data/data/cal_times_all.csv") |>
 
 cal_file <- all_cal_times |>
   arrange(date)  |> 
-  filter(date >= as.POSIXct("2025-10-01", tz = "UTC"),
-         date <  as.POSIXct("2026-03-01", tz = "UTC"))
+  filter(date >= as.POSIXct("2026-03-01", tz = "UTC"),
+         date <  as.POSIXct("2026-10-01", tz = "UTC"))
 
 # List all Parquet parameter files
 param_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit/"

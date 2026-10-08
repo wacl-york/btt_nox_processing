@@ -6,12 +6,12 @@ library(lubridate)
 library(waclr)
 
 # data paths
-data_root <- "/mnt/longship/projects/chem-cmde-2019/btt_processing/raw_data/params" #recently changes to longship
-data_out  <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit"
+data_root <- "/mnt/longship/projects/chem-cmde-2019/btt_processing/raw_data/params" 
+data_out  <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit" #still scratch because for some reason I can't write to longship?? 
 
 # change depending on what you want to process
 years  <- 2026:2026
-months <- sprintf("%02d", 1:2)
+months <- sprintf("%02d", 3:9)
 
 # Helper: get last param file in a folder
 get_last_param_file <- function(folder) {

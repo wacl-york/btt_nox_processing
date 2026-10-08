@@ -1,15 +1,14 @@
 #!/usr/bin/env Rscript
-#SBATCH --job-name=tidy_ec_1 # Job name
-#SBATCH --ntasks=1                      # Number of MPI tasks to request
-#SBATCH --cpus-per-task=1               # Number of CPU cores per MPI task
-#SBATCH --mem=32G                      # Total memory to request
-#SBATCH --time=0-00:30:00               # Time limit (DD-HH:MM:SS)
-#SBATCH --account=chem-cmde-2019        # Project account to use
-#SBATCH --mail-type=END,FAIL            # Mail events (NONE, BEGIN, END, FAIL, ALL)
-#SBATCH --mail-user=cw1781@york.ac.uk   # Where to send mail
-#SBATCH --output=/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec_logs/tidy_logs/sensitivity_tests/test0/%x_%j_%a.log       # Standard output log
-#SBATCH --error=/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec_logs/tidy_logs/sensitivity_tests/test0/%x_%j_%a.err        # Standard error log
-#SBATCH --array=0-168          # Array range
+#SBATCH --job-name=tidy_ec_1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=32G
+#SBATCH --time=0-00:30:00
+#SBATCH --account=chem-cmde-2019
+#SBATCH --mail-type=END,FAIL
+#SBATCH --mail-user=cw1781@york.ac.uk
+#SBATCH --output=/mnt/scratch/users/cw1781/btt_cal_processing/logs/sensitivity_bind/test0/%x_%j.log
+#SBATCH --error=/mnt/scratch/users/cw1781/btt_cal_processing/logs/sensitivity_bind/test0/%x_%j.err
 
 library(cli)
 library(DBI)
@@ -17,26 +16,21 @@ library(purrr)
 library(dplyr)
 library(stringr)
 library(lubridate)
+library(readr)
+library(tidyr)
 
-read_header_and_last <- function(path) {
-  lines <- readLines(path)
-  
-  header <- lines[1]
-  last   <- lines[length(lines)]
-  
-  # Assemble a two-line CSV: header + last row
-  read.csv(text = c(header, last), stringsAsFactors = FALSE)
-}
+base_out <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/sensitivity/out_bound/BTT/test_2"
 
-
-base_out <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec/out_bound/sensitivity_tests/test0"
-
-outputs = tibble(
+outputs <- tibble(
   filePath = system(
-    paste("find", "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/ec/out/sensitivity_tests/test0", "-type f"),
+    paste(
+      "find",
+      "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/sensitivity/out/BTT/test_2",
+      "-type f"
+    ),
     intern = TRUE
   )
-)|> 
+) |>
   mutate(
     fileName = basename(filePath),
     fileType = case_when(
@@ -63,33 +57,65 @@ outputs = tibble(
       str_detect(fileName, "_mean") ~ "mean"
     ),
     fileExtension = case_when(
-      str_detect(fileName, ".csv.gz") ~ ".csv.gz",
-      str_detect(fileName, ".csv") ~ ".csv",
-      str_detect(fileName, ".RDS") ~ ".RDS",
-      str_detect(fileName, ".txt") ~ ".txt"
+      str_detect(fileName, "\\.csv\\.gz$") ~ ".csv.gz",
+      str_detect(fileName, "\\.csv$") ~ ".csv",
+      str_detect(fileName, "\\.RDS$") ~ ".RDS",
+      str_detect(fileName, "\\.txt$") ~ ".txt"
     )
   )
 
-outputsToLoad = outputs |> 
-  filter(fileType %in% c("mean", "ACF", "error", "isca", "foot", "spec", "itc", "stna")) |> 
+outputsToLoad <- outputs |>
+  filter(fileType %in% c(
+    "mean",
+   # "ACF",
+    "error",
+   # "isca",
+   # "foot",
+   # "spec",
+  #  "itc",
+    "stna"
+  )) |>
   mutate(
     fileMask = case_when(
-      fileExtension == ".csv" ~ paste0("NOx_5Hz_%y_%m_%d_%H%M%S_",fileType,fileExtension),
-      fileExtension == ".csv.gz" ~ paste0("%Y%m%d_%H_NOx_5Hz_%y_%m_%d_%H%M%S_",fileType,fileExtension))) %>% 
-    mutate(fileDate = as.POSIXct(fileName, format = fileMask, tz = "UTC"),
+      fileExtension == ".csv" ~
+        paste0("NOx_5Hz_%y_%m_%d_%H%M%S_", fileType, fileExtension),
+      fileExtension == ".csv.gz" ~
+        paste0("%Y%m%d_%H_NOx_5Hz_%y_%m_%d_%H%M%S_", fileType, fileExtension)
+    ),
+    fileDate = as.POSIXct(fileName, format = fileMask, tz = "UTC"),
     yr = year(fileDate),
-    mnth = str_pad(month(fileDate),side = "left", pad = "0", width = 2),
+    mnth = str_pad(month(fileDate), width = 2, side = "left", pad = "0"),
     outDir = file.path(base_out, yr, mnth),
-    outPath = file.path(outDir, paste0(yr, "_", mnth,"_",fileType,fileExtension))) |> 
-  arrange(fileDate) |> 
+    outPath = file.path(
+      outDir,
+      paste0(yr, "_", mnth, "_", fileType, fileExtension)
+    )
+  ) |>
+  arrange(fileDate) |>
   nest_by(outPath, outDir)
 
-i = as.numeric(Sys.getenv('SLURM_ARRAY_TASK_ID'))+1
+message("Found ", nrow(outputsToLoad), " output groups.")
 
-dat = map_df(outputsToLoad$data[[i]]$filePath, read_header_and_last)
-
-if(!dir.exists(outputsToLoad$outDir[i])){
-  dir.create(outputsToLoad$outDir[i], recursive = T)
+for (i in seq_len(nrow(outputsToLoad))) {
+  
+  message(
+    "Processing ", i, " of ", nrow(outputsToLoad),
+    ": ", basename(outputsToLoad$outPath[[i]])
+  )
+  
+  dat <- map_df(
+    outputsToLoad$data[[i]]$filePath,
+    ~read_csv(.x, show_col_types = FALSE)
+  )
+  
+  if (!dir.exists(outputsToLoad$outDir[[i]])) {
+    dir.create(outputsToLoad$outDir[[i]], recursive = TRUE)
+  }
+  
+  write_csv(dat, outputsToLoad$outPath[[i]])
+  
+  message("Finished: ", outputsToLoad$outPath[[i]])
 }
 
-readr::write_csv(dat, outputsToLoad$outPath[i])
+message("All files processed.")
+

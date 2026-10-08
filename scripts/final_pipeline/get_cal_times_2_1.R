@@ -5,7 +5,7 @@ library(vroom)
 library(arrow)
 
 
-param_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit/"
+param_root <- "/mnt/longship/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit/"
 
 param_files <- list.files(file.path(param_root),
                           full.names = TRUE,
