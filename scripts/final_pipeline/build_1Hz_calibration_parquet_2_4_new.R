@@ -1,14 +1,14 @@
 #!/usr/bin/env Rscript
-#SBATCH --job-name=cal_1Hz
+#SBATCH --job-name=cal_1Hz_v2
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
-#SBATCH --time=02:00:00
+#SBATCH --time=04:00:00
 #SBATCH --account=chem-cmde-2019
 #SBATCH --mail-type=END,FAIL
 #SBATCH --mail-user=cw1781@york.ac.uk
-#SBATCH --output=/mnt/scratch/users/cw1781/btt_cal_processing/logs/cal_1Hz_%j.out
-#SBATCH --error=/mnt/scratch/users/cw1781/btt_cal_processing/logs/cal_1Hz_%j.err
+#SBATCH --output=/mnt/scratch/users/cw1781/btt_cal_processing/logs/cal_1Hz_v2_%j.out
+#SBATCH --error=/mnt/scratch/users/cw1781/btt_cal_processing/logs/cal_1Hz_v2_%j.err
 
 # library
 library(tidyverse)
@@ -17,8 +17,12 @@ library(waclr)
 library(zoo)
 
 # ==== SETTINGS ====
-process_from <- "2026-01-01"   # first month to process (NULL = whole record)
-process_to   <- NULL           # NULL = up to the last calibration
+
+args     <- commandArgs(trailingOnly = TRUE)                                                              # <<< NEW
+run_year <- if (length(args) >= 1) as.integer(args[1]) else as.integer(Sys.getenv("SLURM_ARRAY_TASK_ID", NA))  # <<< NEW
+
+process_from <- NULL   # only used when no year is given (NULL = whole record)                           # <<< CHANGED
+process_to   <- NULL   # NULL = up to the last calibration
 
 pair_max_days <- 2.5   # calibration pairs: no more than this many days apart
 pair_min_dp   <- 1     # calibration pairs: pressure must change by at least this much
@@ -232,19 +236,25 @@ ce_interp <- interpolate_ce %>%
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 # record what went into this run (used by the plot script too)
-write_csv(cal_norm %>% select(date, period, av_rxn_vessel_pressure, ch1_sens, ch2_sens,
-                              ch1_norm, ch2_norm, ch1_dev, ch2_dev),
-          file.path(out_dir, "calibrations_used.csv"))
-write_csv(cal_outliers %>% select(date, period, av_rxn_vessel_pressure, ch1_sens, ch2_sens,
-                                  ch1_dev, ch2_dev),
-          file.path(out_dir, "calibrations_outliers_removed.csv"))
-write_csv(tibble(run_date = Sys.time(), channel = c("ch1", "ch2"), r = c(r_ch1, r_ch2),
-                 pct_per_unit = 100 * (c(r_ch1, r_ch2) - 1),
-                 n_pairs = c(sum(cal_pairs$channel == "ch1"), sum(cal_pairs$channel == "ch2")),
-                 p_ref = p_ref),
-          file.path(out_dir, "pressure_effect_r.csv"))
+# write to a temporary name, then rename                                   
+write_csv_safely <- function(x, path) {                                                               
+  tmp <- paste0(path, ".tmp_", Sys.getpid())                                                          
+  write_csv(x, tmp)                                                                                   
+  file.rename(tmp, path)                                                                              
+}                                                                                                     
+write_csv_safely(cal_norm %>% select(date, period, av_rxn_vessel_pressure, ch1_sens, ch2_sens,      
+                                     ch1_norm, ch2_norm, ch1_dev, ch2_dev),
+                 file.path(out_dir, "calibrations_used.csv"))
+write_csv_safely(cal_outliers %>% select(date, period, av_rxn_vessel_pressure, ch1_sens, ch2_sens,   
+                                         ch1_dev, ch2_dev),
+                 file.path(out_dir, "calibrations_outliers_removed.csv"))
+write_csv_safely(tibble(run_date = Sys.time(), channel = c("ch1", "ch2"), r = c(r_ch1, r_ch2),       
+                        pct_per_unit = 100 * (c(r_ch1, r_ch2) - 1),
+                        n_pairs = c(sum(cal_pairs$channel == "ch1"), sum(cal_pairs$channel == "ch2")),
+                        p_ref = p_ref),
+                 file.path(out_dir, "pressure_effect_r.csv"))
 
-# does a parquet file contain data between `from` and `to`? (as in the original)
+# does a parquet file contain data between `from` and `to`? 
 file_in_range <- function(f, from, to) {
   rng <- open_dataset(f, format = "parquet") |>
     select(TheTime) |>
@@ -259,9 +269,17 @@ file_in_range <- function(f, from, to) {
 }
 
 param_files <- list.files(data_root, full.names = TRUE, pattern = "\\.parquet$", recursive = TRUE)
-param_files <- param_files[map_lgl(param_files, file_in_range, from = process_from, to = process_to)]
+
+if (!is.na(run_year)) {                                                                               
+  # one year: pick that year's monthly files by name (param_YYYY_MM.parquet)                         
+  param_files <- param_files[str_detect(basename(param_files), paste0("param_", run_year, "_"))]     
+  message("Year ", run_year, ": processing ", length(param_files), " files")                         
+} else {                                                                                             
+  param_files <- param_files[map_lgl(param_files, file_in_range, from = process_from, to = process_to)]
+  message("Processing ", length(param_files), " files (", process_from, " to ", process_to, ")")    
+}                                                                                                    
 n_files <- length(param_files)
-message("Processing ", n_files, " files (", process_from, " to ", process_to, ")")
+message(paste(basename(param_files), collapse = ", "))                                              
 
 for (i in seq_along(param_files)) {
   f <- param_files[i]

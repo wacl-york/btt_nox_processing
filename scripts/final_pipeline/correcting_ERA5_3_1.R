@@ -7,8 +7,8 @@ library(paletteer)
 # checking the modelled pressure data 
 
 
-ERA5_pressure = read_csv("/mnt/longship/projects/chem-cmde-2019/btt_processing/raw_data/ERA5/reanalysis-era5-single-levels-timeseries-sfcf2tgx155.csv")
-ERA5_pressure2 = read_csv("/mnt/longship/projects/chem-cmde-2019/btt_processing/raw_data/ERA5/reanalysis-era5-single-levels-timeseries-feb26_oct_26.csv")
+ERA5_pressure = read_csv("/mnt/longship/projects/chem-bttao-2026/btt_processing/raw_data/raw_data/ERA5/reanalysis-era5-single-levels-timeseries-sfcf2tgx155.csv")
+ERA5_pressure2 = read_csv("/mnt/longship/projects/chem-bttao-2026/btt_processing/raw_data/raw_data/ERA5/reanalysis-era5-single-levels-timeseries-feb26_oct_26.csv")
 
 ERA5_pressure_all = rbind(ERA5_pressure, ERA5_pressure2)
 

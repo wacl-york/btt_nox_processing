@@ -48,11 +48,11 @@ year_arg = as.numeric(args[2])
 
 # might have to make changes here and also to the sbatch files as we have moved raw_data to longship
 
-data_root <- paste0("/data/raw_data/five_hz/", year_arg)
+data_root <- paste0("/data/raw_data/raw_data/five_hz/", year_arg) 
 out_root <- "/data/processing/ec_2/in"
-cal_root  <- "/data/processing/1Hz_cal_data"
-ERA5_root <- "/data/processing/modelled_data/pressure_corrected.csv"
-sona_root <- "/data/raw_data/sona_data"
+cal_root  <- "/data/processing/1Hz_cal_data_v2"
+ERA5_root <- "/data/processing/modelled_data/pressure_corrected.csv" 
+sona_root <- "/data/raw_data/raw_data/sona_data" 
 
 print("getting file list")
 

@@ -18,9 +18,15 @@ library(purrr)
 library(furrr)
 library(waclr)
 
+# Monthly files with any data between process_from and process_to are processed (whole months).
+process_from  <- "2026-03-01"
+process_to    <- "2026-09-30"
+skip_existing <- TRUE   
+
+
 # read in the 36 hour calibrations
 
-files_coefficients <- list.files(path = "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/calibration_data/", 
+files_coefficients <- list.files(path = "/mnt/longship/projects/chem-cmde-2019/btt_processing/processing/calibration_data/", 
                                  full.names = T, 
                                  pattern = "coefficients",
                                  recursive = T)
@@ -122,7 +128,8 @@ pressure_correction <- cal_coefficients |>
     date >= as.Date("2025-03-18") & date < as.Date("2025-06-05")  ~ "period10",
     date >= as.Date("2025-06-05") & date < as.Date("2025-11-13")  ~ "period11",
     date >= as.Date("2025-11-13") & date < as.Date("2025-12-30")  ~ "period12",
-    date >= as.Date("2025-12-30") & date <= as.Date("2026-12-30")  ~ "period13",
+    date >= as.Date("2025-12-30") & date < as.Date("2026-07-16")  ~ "period13",    
+    date >= as.Date("2026-07-16") & date <= as.Date("2026-12-31")  ~ "period14",
     TRUE ~ NA_character_  # any calibration outside periods cannot be corrected
   )) %>% 
   filter(!is.na(date)) %>% 
@@ -144,7 +151,8 @@ lm_list_ch1 <- list(
   period10 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period10")), 
   period11 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period11")), 
   period12 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period12")), 
-  period13 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period13"))
+  period13 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period13")),
+  period14 = lm(ch1_sens ~ av_rxn_vessel_pressure, data = subset(pressure_correction, period == "period14"))
   
 )
 
@@ -180,8 +188,8 @@ get_period <- function(datetime) {
     datetime >= as.Date("2025-03-18") & datetime < as.Date("2025-06-05") ~ "period10",
     datetime >= as.Date("2025-06-05") & datetime < as.Date("2025-11-13") ~ "period11",
     datetime >= as.Date("2025-11-13") & datetime < as.Date("2025-12-30") ~ "period12",
-    datetime >= as.Date("2025-12-30") & datetime <= as.Date("2026-12-30") ~ "period13",
-    datetime >= as.Date("2026-07-16") & datetime < as.Date("2026-12-31") ~ "period14",
+    datetime >= as.Date("2025-12-30") & datetime < as.Date("2026-07-16") ~ "period13",    
+    datetime >= as.Date("2026-07-16") & datetime <= as.Date("2026-12-31") ~ "period14", 
     TRUE ~ NA_character_  
   )
 }
@@ -222,7 +230,7 @@ ce_interp <- interpolate_ce %>%
 
 # processing the monthly param data to get 1 Hz calibration data 
 
-data_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit"
+data_root <- "/mnt/longship/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit"
 out_dir <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/1Hz_cal_data"
 
 param_files <- list.files(file.path(data_root),
@@ -249,12 +257,15 @@ file_in_range <- function(f, from, to) {
 
 param_files <- param_files[map_lgl(param_files, file_in_range,
                                    from = process_from, to = process_to)]
+
+# skip months that already have a 1 Hz file in out_dir (any year folder)        
+if (skip_existing) {                                                               
+  already_made <- basename(list.files(out_dir, pattern = "\\.parquet$", recursive = TRUE)) 
+  param_files  <- param_files[!basename(param_files) %in% already_made]         
+}  
+
 n_files <- length(param_files)
 message("Processing ", n_files, " files: ", paste(basename(param_files), collapse = ", "))
-
-# ---- SETTINGS: change these to control what gets reprocessed ----
-process_from <- "2026-03-01"   # set to NULL to process everything
-process_to   <- NULL           # set to e.g. "2026-06-30", or NULL for no end date
 
   
   for (i in seq_along(param_files)){
