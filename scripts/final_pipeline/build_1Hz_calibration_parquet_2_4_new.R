@@ -18,10 +18,10 @@ library(zoo)
 
 # ==== SETTINGS ====
 
-args     <- commandArgs(trailingOnly = TRUE)                                                              # <<< NEW
-run_year <- if (length(args) >= 1) as.integer(args[1]) else as.integer(Sys.getenv("SLURM_ARRAY_TASK_ID", NA))  # <<< NEW
+args     <- commandArgs(trailingOnly = TRUE)                                                            
+run_year <- if (length(args) >= 1) as.integer(args[1]) else as.integer(Sys.getenv("SLURM_ARRAY_TASK_ID", NA))  
 
-process_from <- NULL   # only used when no year is given (NULL = whole record)                           # <<< CHANGED
+process_from <- NULL   # only used when no year is given (NULL = whole record)                           
 process_to   <- NULL   # NULL = up to the last calibration
 
 pair_max_days <- 2.5   # calibration pairs: no more than this many days apart
@@ -33,9 +33,9 @@ min_seconds_per_hour <- 600   # an hour needs at least 10 min of pressure data t
 outlier_pct <- 30   # only remove a calibration if it is more than this % from the median of its 5 neighbours
 
 # ==== PATHS ====
-cal_dir   <- "/mnt/longship/projects/chem-cmde-2019/btt_processing/processing/calibration_data/"
-data_root <- "/mnt/longship/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit"
-out_dir   <- "/mnt/longship/projects/chem-bttao-2026/btt_processing/processing/1Hz_cal_data_v2"
+cal_dir   <- "/mnt/longship/projects/chem-bttao-2026/btt_processing/processing/calibration_data/"
+data_root <- "/mnt/longship/projects/chem-bttao-2026/btt_processing/processing/raw_parquet/data/params_edit"
+out_dir   <- "/mnt/scratch/projects/chem-bttao-2026/btt_processing/processing/1Hz_cal_data_v2"
 
 period_starts <- ymd_hms(c(
   "2020-10-13 02:00:00",  # 2
@@ -62,8 +62,17 @@ get_period <- function(datetime) {
 # ==== 2. CALIBRATIONS ====
 
 # read all calibration files once
-cal_raw <- list.files(cal_dir, full.names = TRUE,
-                      pattern = "coefficients", recursive = TRUE) %>%
+
+cal_files <- tibble(file = list.files(cal_dir, pattern = "^coefficients(_2)?\\.csv$",                
+                                      recursive = TRUE, full.names = TRUE)) %>%                      
+  mutate(folder = dirname(file), corrected = str_detect(basename(file), "_2")) %>%                  
+  group_by(folder) %>%                                                                             
+  filter(corrected | !any(corrected)) %>%                  # _2 if the folder has one              
+  pull(file)                                                                                       
+message(sum(str_detect(basename(cal_files), "_2")), " of ", length(cal_files),                     
+        " months use cylinder-corrected calibrations (coefficients_2.csv)")   
+
+cal_raw <- cal_files |> 
   map_df(read_csv, show_col_types = FALSE) %>%
   mutate(date = as_datetime(date, tz = "UTC")) %>%
   filter(!no_cal_flow < 5) %>%   # no-cal flow went below 5 (set at 10 sccm)
@@ -84,7 +93,7 @@ cal_sens <- cal_raw %>%
   filter(ch1_sens > 0.1, ch2_sens > 0.1,  # clearly broken (close to zero)
          ce > 0, ce < 1,                  # bad CE
          av_rxn_vessel_pressure < 400,    # silly high pressure
-         ch1_sens < 10) %>%               # outlier
+         ch1_sens < 15) %>%               # outlier
   mutate(period = get_period(date))
 
 message(nrow(cal_raw), " calibrations read; ", nrow(cal_sens), " used for sensitivity")
@@ -337,6 +346,7 @@ for (i in seq_along(param_files)) {
   
   # --- zeros
   zero_data <- df %>%
+    filter(!is.na(datetime)) %>%   
     filter(zero_valve_1 == 1.0, zero_valve_2 == 1.0) %>%
     mutate(second = second(datetime),
            hour_block = floor_date(datetime, "hour")) %>%

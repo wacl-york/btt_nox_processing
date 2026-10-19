@@ -6,6 +6,24 @@ library(arrow)
 library(waclr)
 library(tidyverse)
 
+# ---- Calibration cylinder degradation ----                                              
+# The cylinder in use from 2025-02-03 to 2026-08-12 delivered 33% less NO than its 5.1 ppm  
+# certificate when calibrated against an NPL standard on its return. The lost NO was        
+# oxidised to NO2 (NO + NO2 conserved), so NO2/NO in the cylinder (x) grew with time:     
+#   x = cyl_a + cyl_b * years since installation        (derived in cylinder_correction.R)  
+# Effective NO in the cylinder = certificate / (1 + x). Other cylinders: x = 0.            
+cyl_on  <- ymd_hms("2025-02-03 00:00:00", tz = "UTC")   # installed                         
+cyl_off <- ymd_hms("2026-08-12 08:00:00", tz = "UTC")   # removed                          
+cyl_a   <- 0.0390                                       # NO2/NO at installation            
+cyl_b   <- 0.2972                                       # NO2/NO increase per year          
+
+get_cyl_no2_no <- function(d) {                         # NO2/NO in the cylinder at time d  
+  yrs <- as.numeric(difftime(d, cyl_on, units = "days")) / 365.25                          
+  ifelse(d >= cyl_on & d < cyl_off, cyl_a + cyl_b * yrs, 0)                                 
+}                                                                                           
+
+out_suffix <- "_2"  # for the cylinder corrected files (for comparison to orginal data)
+
 # Load calibration times
 all_cal_times <- read_csv("data/data/cal_times_all.csv") |> 
   mutate(date2 = as.Date(date)) |> 
@@ -16,8 +34,8 @@ all_cal_times <- read_csv("data/data/cal_times_all.csv") |>
 
 cal_file <- all_cal_times |>
   arrange(date)  |> 
-  filter(date >= as.POSIXct("2026-03-01", tz = "UTC"),
-         date <  as.POSIXct("2026-10-01", tz = "UTC"))
+  filter(date >= as.POSIXct("2025-02-01", tz = "UTC"),    
+         date <  as.POSIXct("2026-09-01", tz = "UTC"))    
 
 # List all Parquet parameter files
 param_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit/"
@@ -42,13 +60,13 @@ expected_param_columns <- c(
 )
 
 # Initialize calibration coefficients table
-cal_coefficients <- data.frame(matrix(ncol = 25, nrow = 0))
+cal_coefficients <- data.frame(matrix(ncol = 26, nrow = 0))   
 colnames(cal_coefficients) <- c(
   "date", "ch1_sens", "ch2_sens", "ce", "ce_zero", "ce_eq2", "no_cal_flow", 
   "mean_ch1_sd", "mean_ch2_sd", "av_control_temp", "av_rxn_vessel_pressure",
   "cal_flag1", "cal_flag2", "cal_flag3", "ce_flag1", "ce_flag2", "zero_1_ch2", 
   "zero_2_ch2", "part1_eq2", "part2_eq2", "part3_eq2", "N", "sample_flow1", "sample_flow2", 
-  "inlet_pressure"
+  "inlet_pressure", "cyl_no2_no"                          
 )
 
 cal_process <- data.frame(cal_time = numeric(), process = numeric())
@@ -63,6 +81,7 @@ for (i in 1:length(cal_times)) {
   cal_timestamp <- floor_date(cal_times[i], "hour")
   cal_year <- year(cal_timestamp)
   cal_month <- sprintf("%02d", month(cal_timestamp))
+  cyl_x <- get_cyl_no2_no(cal_timestamp)  
   
   cat(paste("Processing calibration", i, "of", length(cal_times), "at", cal_timestamp, "\n"))
   
@@ -186,7 +205,8 @@ for (i in 1:length(cal_times)) {
           date < ymd_hms("2020-12-18 00:00:00") ~ 5.03e6,
           date > ymd_hms("2020-12-18 00:00:00") & date < ymd_hms("2021-03-29 00:00:00") ~ 4.96e6,
           date > ymd_hms("2021-03-29 00:00:00") ~ 5.1e6
-        ),
+        ) / (1 + cyl_x),                   # <<< effective NO in a degraded cylinder
+        cyl_no2_no = cyl_x,              
         total_sample_flow = sampleflow1 + sampleflow2,
         cal_conc = cyl_conc * (no_cal_flow / total_sample_flow),
         sens_type = "multi"
@@ -218,7 +238,7 @@ for (i in 1:length(cal_times)) {
       max(ten_single$date, na.rm = TRUE) < ymd_hms("2020-12-18 00:00:00") ~ 5.03e6,
       max(ten_single$date, na.rm = TRUE) < ymd_hms("2021-03-29 00:00:00") ~ 4.96e6,
       TRUE ~ 5.1e6
-    )
+    ) / (1 + cyl_x)                        # <<< CHANGED: effective NO in a degraded cylinder
     
     total_sample_flow <- mean(ten_single$sampleflow1, na.rm = TRUE) + 
       mean(ten_single$sampleflow2, na.rm = TRUE)
@@ -236,6 +256,7 @@ for (i in 1:length(cal_times)) {
       sampleflow1 = mean(ten_single$sampleflow1, na.rm = TRUE),
       sampleflow2 = mean(ten_single$sampleflow2, na.rm = TRUE),
       cyl_conc = cyl_conc,
+      cyl_no2_no = cyl_x,               
       total_sample_flow = total_sample_flow,
       cal_conc = cal_conc,
       sens_ch1 = cal_slope_ch1,
@@ -413,12 +434,12 @@ for (i in 1:length(cal_times)) {
     summarise_all(median, na.rm = TRUE)  %>% 
     dplyr::select(type, ch2_hz) %>% 
     tidyr::pivot_wider(names_from = type,
-                values_from = ch2_hz) %>%
+                       values_from = ch2_hz) %>%
     mutate(ce = 1 - ((gpt_0_blc_1 - gpt_1_blc_1) / (gpt_0_blc_0 - gpt_1_blc_0)),
            ce_zero = 1 - (((gpt_0_blc_1-zero_2_ch2) - (gpt_1_blc_1-zero_1_ch2)) 
                           / ((gpt_0_blc_0-zero_2_ch2) - (gpt_1_blc_0-zero_1_ch2))))
   
-   ce <- con_eff$ce #original CE calculation
+  ce <- con_eff$ce #original CE calculation
   ce_zero <- con_eff$ce_zero #calculation taking off the zeros 
   
   all_stages <- bind_rows(gpt_0_blc_1,
@@ -437,9 +458,9 @@ for (i in 1:length(cal_times)) {
       .groups = "drop") |> 
     mutate(ch2_sens = cal_slope_ch2) |> 
     tidyr::pivot_wider(id_cols = date, 
-                names_from = type, 
-                values_from = c(median_ch2, sampleflow2, zero_ch2, mean_flow, ch2_sens, sampleflow1), 
-                names_glue = "{.value}_type{type}")  |> 
+                       names_from = type, 
+                       values_from = c(median_ch2, sampleflow2, zero_ch2, mean_flow, ch2_sens, sampleflow1), 
+                       names_glue = "{.value}_type{type}")  |> 
     mutate(r2 = mean_flow_typegpt_1_blc_1 / (mean_flow_typegpt_1_blc_1 + (sampleflow2_typegpt_1_blc_1 + sampleflow1_typegpt_1_blc_1)),
            r4 = mean_flow_typegpt_0_blc_1 / (mean_flow_typegpt_0_blc_1 + (sampleflow2_typegpt_0_blc_1 + sampleflow1_typegpt_0_blc_1)), 
            r1 = mean_flow_typegpt_1_blc_0 / (mean_flow_typegpt_1_blc_0 + (sampleflow2_typegpt_1_blc_0 + sampleflow1_typegpt_1_blc_0)), 
@@ -448,7 +469,7 @@ for (i in 1:length(cal_times)) {
            counts_stage2_zero = median_ch2_typegpt_1_blc_1 - zero_1_ch2,
            counts_stage3_zero = median_ch2_typegpt_0_blc_0 - zero_2_ch2, 
            counts_stage4_zero = median_ch2_typegpt_0_blc_1 - zero_2_ch2) |> 
-    mutate(N = 5.1e3 * (ch2_sens_typegpt_1_blc_0 * 1e3)) |> 
+    mutate(N = 5.1e3 / (1 + cyl_x) * (ch2_sens_typegpt_1_blc_0 * 1e3)) |>   # <<< CHANGED: effective cylinder conc, so ce_eq2 is unchanged
     mutate(part1_eq2 = counts_stage2_zero + (N * r1) - counts_stage1_zero, 
            part2_eq2 = counts_stage4_zero * r2 / r4, 
            part3_eq2 = (N * r1) - counts_stage1_zero) |> 
@@ -522,6 +543,7 @@ for (i in 1:length(cal_times)) {
   cal_coefficients[i, 23] <- sample_flow1
   cal_coefficients[i, 24] <- sample_flow2
   cal_coefficients[i, 25] <- inlet_pressure
+  cal_coefficients[i, 26] <- cyl_x       
 }
 
 # Write output files per month/year
@@ -538,7 +560,7 @@ cal_coefficients |>
   group_walk(~ {
     output_dir <- file.path("/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/calibration_data", .y$year, .y$month_num)
     dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-    write_csv(.x, file.path(output_dir, "coefficients.csv"))
+    write_csv(.x, file.path(output_dir, paste0("coefficients", out_suffix, ".csv")))  
   })
 
 all_cal_data <- all_cal_data |>
@@ -551,7 +573,7 @@ all_cal_data |>
   group_walk(~ {
     output_dir <- file.path("/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/calibration_data", .y$year, .y$month_num)
     dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-    write_csv(.x, file.path(output_dir, "sensitivity_params.csv"))
+    write_csv(.x, file.path(output_dir, paste0("sensitivity_params", out_suffix, ".csv")))  
   })
 
 all_con_eff <- all_con_eff |>
@@ -564,5 +586,5 @@ all_con_eff |>
   group_walk(~ {
     output_dir <- file.path("/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/calibration_data", .y$year, .y$month_num)
     dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-    write_csv(.x, file.path(output_dir, "ce_params.csv"))
+    write_csv(.x, file.path(output_dir, paste0("ce_params", out_suffix, ".csv")))   
   })
