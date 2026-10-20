@@ -18,9 +18,10 @@ r_values <- read_csv(file.path(cal_run_dir, "pressure_effect_r.csv"), show_col_t
 period_cols <- setNames(rep_len(as.character(paletteer_d("ggthemes::manyeys")), 15), period_levels)   
 
 # cylinder correction (same numbers as process_calibrations_2_2.R), used to show the uncorrected values  
+
 cyl_on  <- ymd_hms("2025-02-03 00:00:00", tz = "UTC")                                    
 cyl_off <- ymd_hms("2026-08-12 08:00:00", tz = "UTC")                                   
-cyl_a   <- 0.0390                                                                    
+cyl_a   <- 0.0590                                                                    
 cyl_b   <- 0.2972                                                                          
 
 # cylinder changes, drawn as red lines (add any others, e.g. "2021-09-01")                
@@ -177,7 +178,13 @@ fig_pairs <- ggplot(cal_pairs, aes(dp, 100 * (ratio - 1))) +
   scale_color_manual(values = c("#7C2A52", "#C66526", "#469C76", "#88884D", "#0072B2")) +
   labs(x = paste0("Change in reaction cell pressure between calibrations (< ", pair_max_days, " days apart)"),
        y = "Change in sensitivity (%)", colour = "Year") +
-  thesis_theme
+  thesis_theme +
+  theme(strip.text             = element_text(size = 14),
+        axis.title.x           = element_text(size = 14),
+        axis.title.y           = element_text(size = 14),
+        axis.text              = element_text(size = 12),
+        axis.title.y.right     = element_text(size = 14, color = "black"),
+        axis.text.y.right      = element_text(size = 12, color = "black"))
 
 print(fig_pairs)
 ggsave(path = "plots/thesis_plots", plot = fig_pairs, device = "png", filename = "sens_pairs.png",
@@ -342,6 +349,55 @@ fig_loo <- loo_binned |>                                                        
   labs(x = "Pressure difference from the neighbouring calibrations",
        y = "Median absolute error (%, log scale)", colour = NULL) +
   thesis_theme + theme(legend.position = "top")
+
+
+# ---- FIGURE: prediction error against pressure difference, every calibration ----        # <<< NEW
+loo_pts <- loo |>
+  filter(channel == "ch1", !is.na(dp_neighbours)) |>
+  pivot_longer(starts_with("err_"), names_to = "method", values_to = "err") |>
+  mutate(method = factor(method_labels[sub("err_", "", method)], names(method_cols)),
+         ratio  = 1 + err / 100)
+
+dp_rng <- range(loo_pts$dp_neighbours)
+pressure_only <- tibble(dp = seq(dp_rng[1], dp_rng[2], 0.1), ratio = r_ch1^(-dp),
+                        method = factor("Linear interpolation in time", names(method_cols)))   # <<< CHANGED: new name
+
+err_breaks <- c(-75, -50, -20, 0, 25, 100, 300, 700)       # axis labels, in % error
+
+method_cols   <- c("Pressure-normalised interpolation" = "#0072B2",                          # <<< CHANGED
+                   "Per-period pressure regression"    = "#B8963E",
+                   "Linear interpolation in time"      = "grey55")
+
+method_labels <- c(new       = "Pressure-normalised interpolation",                          # <<< CHANGED
+                   original  = "Per-period pressure regression",
+                   time_only = "Linear interpolation in time")
+
+fig_err_dp <- ggplot(loo_pts, aes(dp_neighbours, ratio, colour = method)) +
+  geom_hline(yintercept = 1, colour = "grey40") +           # ratio 1 = no error
+  geom_point(size = 1.4, alpha = 0.6) +
+  geom_line(data = pressure_only, aes(dp, ratio), colour = "black", linetype = "dashed") +
+  facet_wrap(~method) +
+  scale_y_log10(breaks = 1 + err_breaks / 100,
+                labels = paste0(ifelse(err_breaks > 0, "+", ""), err_breaks)) +
+  scale_colour_manual(values = method_cols, guide = "none") +
+  geom_text(data = tibble(method = factor("Linear interpolation in time", names(method_cols)),     # <<< NEW: only in this panel
+                          label  = sprintf("Error == 100~(%.3f^{-Delta*italic(p)} - 1)", r_ch1)),
+            aes(x = -Inf, y = Inf, label = label), parse = TRUE,
+            hjust = -0.05, vjust = 1.4, size = 4, colour = "black", inherit.aes = FALSE) +
+  labs(x = "Pressure difference from the neighbouring calibrations",
+       y = "Prediction error (%, log scale)") +
+  thesis_theme +
+  theme(strip.text             = element_text(size = 14),
+        axis.title.x           = element_text(size = 14),
+        axis.title.y           = element_text(size = 14),
+        axis.text              = element_text(size = 12),
+        axis.title.y.right     = element_text(size = 14, color = "black"),
+        axis.text.y.right      = element_text(size = 12, color = "black"))
+  
+
+print(fig_err_dp)
+ggsave(path = plot_dir, plot = fig_err_dp, device = "png", filename = "sens_loo_err_dp.png",
+       dpi = 300, width = 11, height = 4.5)
 
 
 # ---- NUMBERS FOR THE TEXT ----
