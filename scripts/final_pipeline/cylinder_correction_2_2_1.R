@@ -85,7 +85,9 @@ x_fit_lab <- a + b * yrs_lab                            # what the field calibra
 
 # ==== 4. OFFSET: FIELD CALIBRATIONS vs LAB ====
 # The lab result sets the absolute level; the field calibrations give the change through time.
-offset <- x_fit_lab - x_lab                             # > 0: field calibrations read NO2/NO too high
+# The offset is so minimal that I am not going to apply one 
+
+offset <- 0                       
 
 
 # ==== 5. CORRECTION FOR process_calibrations ====
@@ -100,7 +102,7 @@ f_corr <- function(years) 1 + x_corr(years)              # sensitivity correctio
 # Same steps, no assumed shape: loess through the same points, anchored to the lab the same way.
 lo      <- loess(x ~ years, data = used, span = loess_span)
 pred_lo <- function(years) predict(lo, newdata = tibble(years = pmin(pmax(years, min(used$years)), max(used$years))))
-lo_offset <- pred_lo(yrs_lab) - x_lab
+lo_offset <- 0 #pred_lo(yrs_lab) - x_lab
 f_loess <- function(years) 1 + pred_lo(years) - lo_offset
 
 cmp <- tibble(years = x_data$years) %>%                 # at every field calibration with this cylinder
@@ -108,7 +110,7 @@ cmp <- tibble(years = x_data$years) %>%                 # at every field calibra
          diff_pct = 100 * (f_loess / f_linear - 1))
 
 
-# ==== SUMMARY: NUMBERS FOR THE WRITE-UP ====
+# ==== SUMMARY: NUMBERS FOR WRITE-UP ====
 cat("\n================ CYLINDER CORRECTION ================\n")
 cat(sprintf("Lab calibration of returned cylinder:\n"))
 cat(sprintf("  measured / set              %.3f +/- %.3f\n", lab_frac, lab_frac_se))
@@ -163,10 +165,15 @@ fig2 <- ggplot(x_data, aes(date, 100 * x)) +
   geom_point(aes(shape = outlier), colour = "#4A5483", alpha = 0.6, size = 1.2) +
   scale_shape_manual(values = c(`FALSE` = 16, `TRUE` = 4), labels = c("Field calibration", "Outlier"), name = NULL) +
   geom_line(data = curve, aes(date, x, colour = fit), linewidth = 0.8) +
+  geom_line(data = curve, aes(date, x, colour = fit), linewidth = 0.8) +
   annotate("pointrange", x = lab_date, y = 100 * x_lab,
            ymin = 100 * x_lab_range[1], ymax = 100 * x_lab_range[2], colour = "black", shape = 17) +
   scale_colour_manual(values = fit_cols, name = NULL) +
   labs(x = NULL, y = expression(NO[2]/NO~"in cylinder (%)")) +
+  geom_text(data = tibble(date  = cyl_on + days(20),                                           # <<< NEW: line equations, top left
+                          y     = c(69),
+                          label = c(sprintf("italic(x) == %.3f + %.3f~(italic(t) - italic(t)[0])", a, b))),
+            aes(date, y, label = label), parse = TRUE, hjust = 0, size = 4.2, inherit.aes = FALSE) +
   theme_bw() +
   theme(
     strip.text             = element_text(size = 14),

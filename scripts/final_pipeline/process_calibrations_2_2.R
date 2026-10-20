@@ -14,7 +14,7 @@ library(tidyverse)
 # Effective NO in the cylinder = certificate / (1 + x). Other cylinders: x = 0.            
 cyl_on  <- ymd_hms("2025-02-03 00:00:00", tz = "UTC")   # installed                         
 cyl_off <- ymd_hms("2026-08-12 08:00:00", tz = "UTC")   # removed                          
-cyl_a   <- 0.0390                                       # NO2/NO at installation            
+cyl_a   <- 0.0590                                       # NO2/NO at installation            
 cyl_b   <- 0.2972                                       # NO2/NO increase per year          
 
 get_cyl_no2_no <- function(d) {                         # NO2/NO in the cylinder at time d  
@@ -38,7 +38,7 @@ cal_file <- all_cal_times |>
          date <  as.POSIXct("2026-09-01", tz = "UTC"))    
 
 # List all Parquet parameter files
-param_root <- "/mnt/scratch/projects/chem-cmde-2019/btt_processing/processing/raw_parquet/data/params_edit/"
+param_root <- "/mnt/longship/projects/chem-bttao-2026/btt_processing/processing/raw_parquet/data/params_edit/"
 
 param_files <- list.files(file.path(param_root), 
                           full.names = TRUE, 
