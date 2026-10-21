@@ -7,6 +7,7 @@ library(plotly)
 
 files <- list.files("/mnt/longship/projects/chem-bttao-2026/btt_processing/processing/calibration_data",
                     pattern = "ce_params.csv", recursive = TRUE, full.names = TRUE)
+
 cal_stages <- map_dfr(files, read_csv, show_col_types = FALSE)
 
 unique(cal_stages$type)   # check the labels -- adjust the regex/case_when below if needed
@@ -64,7 +65,6 @@ ggplotly()
 
 
 # ==== The cylinder removed on 12 Aug 2026: straight line, where it crosses 0 ====
-library(tidyverse)
 
 cal_dir   <- "/mnt/longship/projects/chem-bttao-2026/btt_processing/processing/calibration_data"
 cyl_on    <- ymd_hms("2025-02-03 00:00:00", tz = "UTC")   # went on (maintenance + cylinder change)
