@@ -3,6 +3,7 @@
 library(tidyverse)
 library(plotly)
 library(paletteer)
+library(ggtext)
 
 # checking the modelled pressure data 
 
@@ -43,6 +44,10 @@ write_csv(ERA5_pressure_corrected,
 
 
 pressure_correction = ERA5_pressure_corrected %>% 
+  mutate(week = floor_date(valid_time, "week")) |> 
+  group_by(week) |> 
+  summarise(pres_190m_pa = mean(pres_190m_pa, na.rm = T), 
+            sp = mean(sp, na.rm = T)) |> 
   # mutate(hour = hour(valid_time)) |> 
   # group_by(hour) |> 
   # summarise(sp = mean(sp), 
@@ -51,7 +56,7 @@ pressure_correction = ERA5_pressure_corrected %>%
          "Surface pressure" = sp) |> 
   pivot_longer(cols = c("Surface pressure", "Height corrected pressure"), 
                names_to = "type", values_to = "pressure") %>% 
-  ggplot(aes(valid_time, pressure, color = type))+
+  ggplot(aes(week, pressure, color = type))+
   geom_line() +
   theme_bw() +
   theme(
@@ -60,8 +65,10 @@ pressure_correction = ERA5_pressure_corrected %>%
     axis.title.y           = element_text(size = 14),
     axis.text              = element_text(size = 12),
     axis.title.y.right     = element_text(size = 14, color = "black"),
-    axis.text.y.right      = element_text(size = 12, color = "black")
+    axis.text.y.right      = element_text(size = 12, color = "black"), 
+    legend.position        = "top"
   ) +
+  guides(colour = guide_legend(override.aes = list(linewidth = 2))) +
   scale_color_manual(values = c("#8CA252FF", #"#BD9E39FF", 
                                 "grey")) +
   labs(x = "Date", y = "Pressure (Pa)", color = "")
@@ -72,19 +79,20 @@ ggsave(path = "/mnt/scratch/users/cw1781/btt_flux_analysis/flux_analysis/plots/t
   
 
 RH_rtio = ERA5_pressure_corrected %>% 
-   mutate(day = floor_date(valid_time, "day")) |> 
-   group_by(day) |> 
+   mutate(week = floor_date(valid_time, "week")) |> 
+   group_by(week) |> 
    summarise(relative_humidity = mean(relative_humidity), 
              rtioMoleDryH2O = mean(rtioMoleDryH2O)) |> 
-  rename("Relative humidity (%)" = relative_humidity) |> 
-  pivot_longer(cols = c("Relative humidity (%)", rtioMoleDryH2O), 
-               values_to = "water", names_to = "type") |> 
-  ggplot(aes(day, water, color = type))+
+  rename("Relative humidity (%)" = relative_humidity, 
+         "Dry mole ratio H<sub>2</sub>O" = rtioMoleDryH2O) |> 
+  pivot_longer(cols = c("Relative humidity (%)", "Dry mole ratio H<sub>2</sub>O"), 
+               values_to = "water", names_to = "type") |>
+  ggplot(aes(week, water, color = type))+
   geom_line() +
   theme_bw() +
   facet_wrap(~type, scales = "free_y", ncol = 1) +
   theme(
-    strip.text             = element_text(size = 14),
+    strip.text = ggtext::element_markdown(size = 14),
     axis.title.x           = element_text(size = 14),
     axis.title.y           = element_text(size = 14),
     axis.text              = element_text(size = 12),

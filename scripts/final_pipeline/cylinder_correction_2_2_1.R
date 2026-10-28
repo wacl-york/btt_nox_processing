@@ -209,3 +209,11 @@ if (save_figs) {
   ggsave(file.path(fig_dir, "cylinder_no2_no.png"),          fig2, width = 8,  height = 4.5, dpi = 300)
   ggsave(file.path(fig_dir, "cylinder_correction_factor.png"), fig3, width = 8, height = 4.5, dpi = 300)
 }
+
+yrs_grid  <- seq(0, yrs_off, length.out = 200)
+pred_grid <- predict(lin, newdata = tibble(years = yrs_grid), se.fit = TRUE)
+u_cylcorr <- tibble(date          = cyl_on + as.difftime(yrs_grid * 365.25, units = "days"),
+                                         u_fit_pct     = 100 * pred_grid$se.fit / f_corr(yrs_grid),
+                                         u_model_pct   = 100 * abs(f_loess(yrs_grid) / f_corr(yrs_grid) - 1),
+                                         u_cylcorr_pct = sqrt(u_fit_pct^2 + u_model_pct^2))
+write_csv(u_cylcorr, "data/data/u_cylcorr.csv")

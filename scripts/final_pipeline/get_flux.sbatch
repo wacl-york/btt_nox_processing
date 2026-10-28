@@ -17,7 +17,7 @@ MODE=$2
 
 # outputs (fluxes, ACF, lag ranges) go to chem-bttao-2026 scratch; the new inputs are read from longship (read only)
 OUT_HOST=/mnt/scratch/projects/chem-bttao-2026/btt_processing/processing        # = /processing in the container
-IN_HOST=/mnt/longship/projects/chem-bttao-2026/btt_processing/processing/ec_2/in   # = /processing/ec_2/in in the container
+IN_HOST=/mnt/scratch/projects/chem-bttao-2026/btt_processing/processing/ec_2/in   # = /processing/ec_2/in in the container
 LIST=/mnt/scratch/users/cw1781/btt_cal_processing/file_lists/ec_in_${YEAR}.txt
 
 # file for this task: line (task ID + 1) of the year's sorted list, converted to the container path

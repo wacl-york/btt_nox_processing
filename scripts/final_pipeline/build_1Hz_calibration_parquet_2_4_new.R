@@ -89,11 +89,18 @@ cal_coefficients <- cal_raw %>%
 
 # for sensitivity: genuine sensitivities can be < 1 at high pressure, so only
 # remove values that are clearly broken; the outlier check (section 4) does the rest
+# Nov-Dec 2020: calibration-system fault (sensitivity fell ~70 % while the ambient signal did not change).
+# These calibrations are dropped, so the sensitivity is interpolated between the good calibrations either side.
+
+bad_cal_from <- ymd_hms("2020-11-29 00:00:00", tz = "UTC")
+bad_cal_to   <- ymd_hms("2020-12-13 00:00:00", tz = "UTC")
+
 cal_sens <- cal_raw %>%
   filter(ch1_sens > 0.1, ch2_sens > 0.1,  # clearly broken (close to zero)
          ce > 0, ce < 1,                  # bad CE
          av_rxn_vessel_pressure < 400,    # silly high pressure
-         ch1_sens < 15) %>%               # outlier
+         ch1_sens < 15, 
+         !(date > bad_cal_from & date < bad_cal_to)) %>%   # calibration-system fault, Nov-Dec 2020
   mutate(period = get_period(date))
 
 message(nrow(cal_raw), " calibrations read; ", nrow(cal_sens), " used for sensitivity")

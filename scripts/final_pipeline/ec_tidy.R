@@ -223,8 +223,12 @@ submit_ec_tidy_job = function(
     user,
     account_code,
     tempEcCollatedOutputs,
-    types
+    types,
+    tempSbatch = here::here('tmp', 'tempSbatch'),
+    logDir = "/mnt/scratch/users/cw1781/btt_cal_processing/logs/tidy_v2"
 ){
+  
+  if (!dir.exists(logDir)) dir.create(logDir, recursive = TRUE)
   
   job_name = glue::glue("tidy_{runID}")
   
@@ -243,8 +247,8 @@ submit_ec_tidy_job = function(
   #SBATCH --account={account_code}
   #SBATCH --mail-type=END,FAIL
   #SBATCH --mail-user={user}@york.ac.uk
-  #SBATCH --output={logs_path({job_name},'%x_%j_%a.log')}
-  #SBATCH --error={logs_path({job_name},'%x_%j_%a.err')}
+  #SBATCH --output={file.path(logDir, '%x_%A_%a.log')}
+  #SBATCH --error={file.path(logDir, '%x_%A_%a.err')}
   #SBATCH --array=0-{nrow(ecOutputsCollated)-1}
   
   system(paste0('set -e'))
@@ -268,6 +272,7 @@ submit_ec_tidy_job = function(
   return(resp)
   
 }
+
 
 ec_parquet_load_list = function(boundOutputPath, runID){
   

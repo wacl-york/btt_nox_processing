@@ -22,6 +22,15 @@ connect_to_db = function(read_only = TRUE){
   
 }
 
+# database for the v2 (recalibrated) fluxes
+connect_to_db_v2 = function(read_only = TRUE){
+  
+  dbdir = "/mnt/longship/projects/chem-bttao-2026/btt_processing/processing/ec_2/duckdb/ec_BT_v2.duckdb"
+  if (!dir.exists(dirname(dbdir))) dir.create(dirname(dbdir), recursive = TRUE)
+  
+  DBI::dbConnect(drv = duckdb::duckdb(), dbdir = dbdir, read_only = read_only)
+}
+
 
 library(dplyr)
 
